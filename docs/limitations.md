@@ -22,16 +22,30 @@ performed synchronously per event; a production design would batch/queue anchori
 separate the signing role behind an HSM/KMS. The signing key shipped in `.env.example` is a
 well-known public Hardhat key — never reuse it.
 
+**Hardhat resets wipe on-chain state.** Restarting the local chain clears all anchored events
+while SQLite may still mark them `anchored`. On startup the server reconciles stale anchors
+(`POST /api/ledger/sync`) and re-registers pending events. If the dashboard shows
+`pending_chain` after a chain restart, run `python dev.py` once (it redeploys when bytecode
+is missing) or call `/api/ledger/sync` manually.
+
+## Transport encryption
+
+With `python dev.py` (default), REST and WebSockets use **TLS/WSS** and a lab
+self-signed certificate. Use `--no-tls` only for local debugging. Docker Compose still
+defaults to plain HTTP unless you terminate TLS in front of the services.
+
 ## Simple token, not real PKI
 
 Node authentication is a single shared, static token (`NODE_SHARED_TOKEN`) compared in
-constant time. Anyone holding it can register an node. There is no per-node identity,
-rotation, or mutual TLS. Real deployments would use certificates / mTLS and per-node keys.
+constant time. Anyone holding it can register an node. There is no per-node token rotation or mutual
+TLS (certificates for client auth). Real deployments would use certificates / mTLS and
+per-node keys.
 
-## No transport encryption by default
+## Plain HTTP in Docker / without dev.py
 
-WebSockets and REST run over plain HTTP/WS for a trusted localhost/LAN lab. Put a TLS
-terminator in front (and use `wss://`/`https://`) before using any untrusted network.
+The default `docker compose` path does not enable TLS on the internal network. The lab
+`dev.py` launcher does (HTTPS/WSS). Put a TLS terminator in front before any untrusted
+network.
 
 ## SQLite by default
 

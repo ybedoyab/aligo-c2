@@ -20,6 +20,7 @@ import shutil
 import signal
 import socket
 import sqlite3
+import ssl
 import subprocess
 import sys
 import threading
@@ -27,6 +28,8 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+
+from lab_tls import ensure_lab_certs
 
 ROOT = Path(__file__).resolve().parent
 VENV_DIR = ROOT / "venv"
@@ -40,6 +43,14 @@ URLS = {
     "api": "http://localhost:8000",
     "api_docs": "http://localhost:8000/docs",
     "health": "http://localhost:8000/health",
+    "chain_rpc": "http://localhost:8545",
+}
+
+URLS_TLS = {
+    "dashboard": "https://127.0.0.1:5173",
+    "api": "https://127.0.0.1:8000",
+    "api_docs": "https://127.0.0.1:8000/docs",
+    "health": "https://127.0.0.1:8000/health",
     "chain_rpc": "http://localhost:8545",
 }
 
@@ -109,7 +120,7 @@ def which_or_die(name: str) -> str:
     return path
 
 
-def load_env() -> dict[str, str]:
+def load_env(*, use_tls: bool) -> dict[str, str]:
     env = os.environ.copy()
     if ENV_FILE.is_file():
         for raw in ENV_FILE.read_text(encoding="utf-8").splitlines():
@@ -118,11 +129,28 @@ def load_env() -> dict[str, str]:
                 continue
             key, value = line.split("=", 1)
             env[key.strip()] = value.strip()
-    # Local dev always talks to localhost chain (docker-compose uses blockchain:8545).
     env["BLOCKCHAIN_RPC_URL"] = "http://127.0.0.1:8545"
     env.setdefault("NODE_SHARED_TOKEN", "change-me-lab-token")
-    env.setdefault("C2_WS_URL", "ws://127.0.0.1:8000/ws/node")
+    if use_tls:
+        cert, key = ensure_lab_certs()
+        env["SSL_CERTFILE"] = str(cert)
+        env["SSL_KEYFILE"] = str(key)
+        env["C2_WS_URL"] = "wss://127.0.0.1:8000/ws/node"
+        env["FRONTEND_URL"] = "https://127.0.0.1:5173"
+        env["VITE_DEV_TLS"] = "true"
+        env["VITE_API_URL"] = ""
+    else:
+        env.setdefault("C2_WS_URL", "ws://127.0.0.1:8000/ws/node")
     return env
+
+
+def _http_opener(url: str) -> urllib.request.OpenerDirector:
+    if url.startswith("https:"):
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
+    return urllib.request.build_opener()
 
 
 def ensure_env_file() -> None:
@@ -226,9 +254,10 @@ def wait_for_rpc(url: str, timeout: float = 90.0) -> bool:
 
 def wait_for_http(url: str, timeout: float = 90.0) -> bool:
     deadline = time.time() + timeout
+    opener = _http_opener(url)
     while time.time() < deadline:
         try:
-            with urllib.request.urlopen(url, timeout=2) as resp:
+            with opener.open(url, timeout=2) as resp:
                 if 200 <= resp.status < 500:
                     return True
         except (urllib.error.URLError, TimeoutError, OSError):
@@ -534,14 +563,46 @@ def spawn(
     return proc
 
 
+def _rpc_has_contract_bytecode(rpc_url: str, address: str) -> bool:
+    """Return True when bytecode exists at address on the live chain."""
+    try:
+        payload = json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "method": "eth_getCode",
+                "params": [address, "latest"],
+                "id": 1,
+            }
+        ).encode()
+        req = urllib.request.Request(
+            rpc_url,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            result = json.loads(resp.read()).get("result", "0x")
+        return bool(result and result not in ("0x", "0x0") and len(result) > 4)
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError):
+        return False
+
+
 def deploy_contract(env: dict[str, str], force: bool) -> None:
+    rpc = env.get("BLOCKCHAIN_RPC_URL", "http://127.0.0.1:8545")
     if DEPLOYMENT_JSON.is_file() and not force:
         try:
             data = json.loads(DEPLOYMENT_JSON.read_text(encoding="utf-8"))
             addr = data.get("address", "")
-            if addr:
-                log("CHAIN", f"Contract already deployed at {addr} (deployment.json)")
+            if addr and _rpc_has_contract_bytecode(rpc, addr):
+                log(
+                    "CHAIN",
+                    f"Contract already deployed at {addr} (bytecode present on chain)",
+                )
                 return
+            if addr:
+                log(
+                    "CHAIN",
+                    f"No bytecode at {addr} — Hardhat chain was reset; redeploying…",
+                )
         except (json.JSONDecodeError, OSError):
             pass
 
@@ -594,7 +655,10 @@ def print_urls(node_count: int) -> None:
     print(f"  Health        {URLS['health']}")
     print(f"  Chain RPC     {URLS['chain_rpc']}")
     if node_count > 0:
-        print(f"  Nodes         {node_count} simulated worker(s) connected via WebSocket")
+        transport = "WSS (TLS)" if URLS["api"].startswith("https") else "WebSocket"
+        print(f"  Nodes         {node_count} simulated worker(s) via {transport}")
+    if URLS["dashboard"].startswith("https"):
+        print("  TLS           lab self-signed — accept browser warning on first open")
     print("\n  Press Ctrl+C to stop all services.\n", flush=True)
 
 
@@ -617,17 +681,30 @@ def main() -> None:
         action="store_true",
         help="keep SQLite DB even if schema looks stale",
     )
+    parser.add_argument(
+        "--no-tls",
+        action="store_true",
+        help="use plain HTTP/WS instead of HTTPS/WSS (debug only)",
+    )
     args = parser.parse_args()
 
     signal.signal(signal.SIGINT, shutdown)
     if hasattr(signal, "SIGTERM"):
         signal.signal(signal.SIGTERM, shutdown)
 
+    use_tls = not args.no_tls
+    global URLS
+    if use_tls:
+        URLS = dict(URLS_TLS)
+
     banner("DEV", "Aligo Mission Ledger C2 — starting local stack")
     PYTHON = ensure_venv_python()
     log("SETUP", f"Python: {PYTHON}")
     install_all(args.skip_install)
-    env = venv_env(load_env())
+    if use_tls:
+        cert_path, key_path = ensure_lab_certs()
+        log("SETUP", f"TLS lab cert ready ({cert_path.name})")
+    env = venv_env(load_env(use_tls=use_tls))
     freed_ports: set[int] = set()
     if not args.no_kill:
         freed_ports = free_stack_ports()
@@ -653,24 +730,31 @@ def main() -> None:
     log("BACK", "Starting FastAPI server on :8000…")
     server_env = env.copy()
     server_env.setdefault("DATABASE_URL", "sqlite:///./c2.db")
-    spawn(
-        "BACK",
-        [
-            str(PYTHON),
-            "-m",
-            "uvicorn",
-            "app.main:app",
-            "--host",
-            "0.0.0.0",
-            "--port",
-            "8000",
-            "--reload",
-        ],
-        ROOT / "server",
-        server_env,
-    )
+    back_cmd = [
+        str(PYTHON),
+        "-m",
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+    ]
+    if use_tls:
+        back_cmd.extend(
+            ["--ssl-keyfile", server_env["SSL_KEYFILE"], "--ssl-certfile", server_env["SSL_CERTFILE"]]
+        )
+        log("BACK", "Channel encryption: HTTPS + WSS (lab self-signed)")
+    back_proc = spawn("BACK", back_cmd, ROOT / "server", server_env, shell=False)
     if not wait_for_http(URLS["health"]):
         log("BACK", "ERROR: API did not become ready in time")
+        shutdown()
+    if back_proc.poll() is not None:
+        log(
+            "BACK",
+            "ERROR: backend exited during startup (port :8000 likely still in use). "
+            "Close other dev.py/uvicorn sessions and retry.",
+        )
         shutdown()
     log("BACK", "API ready")
 

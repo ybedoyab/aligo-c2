@@ -17,7 +17,7 @@ from app.core.config import settings
 from app.db.database import engine, init_db
 from app.db.seed import seed_predefined_missions
 from app.schemas.node import NodeRead
-from app.services import node_service
+from app.services import ledger_service, node_service
 from app.websocket import notifier
 from app.websocket.node_socket import node_endpoint
 from app.websocket.operator_socket import operator_endpoint
@@ -48,17 +48,37 @@ async def _heartbeat_monitor() -> None:
             logger.exception("heartbeat monitor error: %s", exc)
 
 
+async def _sync_ledger_with_chain() -> None:
+    """Background: fix stale anchors after Hardhat restart and anchor pending events."""
+    try:
+        summary = await asyncio.to_thread(_sync_ledger_blocking)
+        logger.info(
+            "Ledger chain sync complete: %d stale reset, %d re-anchored",
+            summary.get("stale_reset", 0),
+            summary.get("re_anchored", 0),
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.exception("ledger chain sync failed: %s", exc)
+
+
+def _sync_ledger_blocking() -> dict[str, int]:
+    with Session(engine) as session:
+        return ledger_service.ensure_chain_sync(session)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     seed_predefined_missions()
     client = get_contract_client()
     logger.info("Ledger status: %s", client.reason)
+    sync_task = asyncio.create_task(_sync_ledger_with_chain())
     monitor = asyncio.create_task(_heartbeat_monitor())
     logger.info("Aligo Mission Ledger C2 server started (v%s)", __version__)
     try:
         yield
     finally:
+        sync_task.cancel()
         monitor.cancel()
 
 

@@ -20,10 +20,16 @@ import type {
 } from "../types";
 
 const API_URL =
-  (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
+  (import.meta.env.VITE_API_URL as string | undefined) ??
+  (import.meta.env.DEV ? "" : "http://localhost:8000");
 
 function wsBase(): string {
-  return API_URL.replace(/^http/, "ws");
+  const explicit = import.meta.env.VITE_API_URL as string | undefined;
+  if (explicit) {
+    return explicit.replace(/^http/, "ws");
+  }
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${proto}//${window.location.host}`;
 }
 
 export const OPERATOR_WS_URL = `${wsBase()}/ws/operator`;

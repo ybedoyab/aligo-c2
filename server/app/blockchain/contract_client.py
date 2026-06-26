@@ -62,6 +62,12 @@ class ContractClient:
 
             abi = json.loads(_ABI_PATH.read_text(encoding="utf-8"))
             address = Web3.to_checksum_address(settings.contract_address)
+            bytecode = web3.eth.get_code(address)
+            if not bytecode or bytecode.hex() in ("0x", "0x0"):
+                self.reason = f"no contract bytecode at {address} (redeploy required)"
+                logger.warning(self.reason)
+                return
+
             self._contract = web3.eth.contract(address=address, abi=abi)
             self._account = web3.eth.account.from_key(settings.blockchain_private_key)
             self._web3 = web3
@@ -124,12 +130,22 @@ class ContractClient:
                 logger.warning("Failed to anchor event %s on-chain: %s", event_id, exc)
                 return None
 
+    def event_exists(self, event_id: str) -> bool:
+        """Return True if the event id is registered on-chain."""
+        if not self.available:
+            return False
+        try:
+            return bool(self._contract.functions.eventExists(event_id).call())
+        except Exception as exc:  # pragma: no cover
+            logger.warning("Failed to check on-chain event %s: %s", event_id, exc)
+            return False
+
     def get_onchain_hash(self, event_id: str) -> str | None:
         """Return the on-chain payload hash (hex) for an event, or None."""
         if not self.available:
             return None
         try:
-            if not self._contract.functions.eventExists(event_id).call():
+            if not self.event_exists(event_id):
                 return None
             result = self._contract.functions.getEvent(event_id).call()
             payload_hash: bytes = result[4]  # 5th return value is payloadHash

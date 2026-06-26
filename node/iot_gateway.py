@@ -26,6 +26,7 @@ from protocol import (
     task_ack_message,
 )
 from signing import build_signable_result_payload, sign_result
+from ws_connect import connect_ws
 
 logging.basicConfig(
     level=logging.INFO,
@@ -61,7 +62,7 @@ class IoTGatewayNode:
 
     async def _connect_once(self) -> None:
         self.log.info("IoT gateway connecting to %s", self.cfg.ws_url)
-        async with websockets.connect(
+        async with connect_ws(
             self.cfg.ws_url, max_size=self.cfg.max_message_bytes
         ) as ws:
             await ws.send(

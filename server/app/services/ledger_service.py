@@ -177,6 +177,13 @@ def verify_event(session: Session, event_id: str) -> LedgerVerifyResult | None:
     if onchain_hash is not None:
         normalized = onchain_hash[2:] if onchain_hash.startswith("0x") else onchain_hash
         chain_match = normalized.lower() == event.payload_hash.lower()
+    elif client.available and client.event_exists(event_id):
+        verified = client.verify_event_hash(event_id, event.payload_hash)
+        if verified is True:
+            chain_match = True
+            onchain_hash = f"0x{event.payload_hash}"
+        elif verified is False:
+            chain_match = False
 
     if not local_match:
         status, verified, detail = (
@@ -185,11 +192,14 @@ def verify_event(session: Session, event_id: str) -> LedgerVerifyResult | None:
             "Recomputed hash does not match the stored local hash.",
         )
     elif chain_match is None:
-        status, verified, detail = (
-            "pending_chain",
-            local_match,
-            "Event is not anchored on-chain; local hash is consistent.",
-        )
+        if _is_anchored(event.onchain_status):
+            detail = (
+                "Event is marked anchored locally but missing on-chain "
+                "(chain reset or stale DB). Re-sync the ledger."
+            )
+        else:
+            detail = "Event is not anchored on-chain; local hash is consistent."
+        status, verified = "pending_chain", local_match
     elif chain_match:
         status, verified, detail = (
             "verified",
@@ -343,7 +353,9 @@ def anchor_event(session: Session, event_id: str) -> AnchorResult:
             success=False,
             detail="ledger event not found",
         )
-    if _is_anchored(event.onchain_status):
+
+    client = get_contract_client()
+    if _is_anchored(event.onchain_status) and client.event_exists(event_id):
         return AnchorResult(
             event_id=event_id,
             success=True,
@@ -359,7 +371,6 @@ def anchor_event(session: Session, event_id: str) -> AnchorResult:
             detail="ledger is disabled",
         )
 
-    client = get_contract_client()
     if not client.available:
         return AnchorResult(
             event_id=event_id,
@@ -412,3 +423,60 @@ def anchor_pending_events(session: Session, limit: int = 50) -> list[AnchorResul
         ).all()
     )
     return [anchor_event(session, e.id) for e in pending]
+
+
+def reconcile_chain_anchors(session: Session) -> int:
+    """Reset locally-anchored events that no longer exist on-chain (e.g. Hardhat restart)."""
+    client = get_contract_client()
+    if not client.available:
+        return 0
+
+    stale = 0
+    anchored_events = list(
+        session.exec(
+            select(LedgerEvent).where(
+                LedgerEvent.onchain_status.in_(
+                    [OnChainStatus.ANCHORED, OnChainStatus.CONFIRMED]
+                )
+            )
+        ).all()
+    )
+    for event in anchored_events:
+        if client.event_exists(event.id):
+            continue
+        event.onchain_status = OnChainStatus.PENDING_CHAIN
+        event.tx_hash = None
+        event.block_number = None
+        session.add(event)
+        stale += 1
+
+    if stale:
+        session.commit()
+        logger.info(
+            "Reset %d stale anchored ledger events (chain was reset or redeployed)",
+            stale,
+        )
+    return stale
+
+
+def ensure_chain_sync(
+    session: Session, *, batch_size: int = 100, max_batches: int = 50
+) -> dict[str, int]:
+    """Reconcile stale anchors and register any pending events on-chain."""
+    stale_reset = reconcile_chain_anchors(session)
+    re_anchored = 0
+    batches = 0
+    while batches < max_batches:
+        results = anchor_pending_events(session, limit=batch_size)
+        batches += 1
+        if not results:
+            break
+        successes = sum(1 for r in results if r.success)
+        re_anchored += successes
+        if successes == 0:
+            break
+    return {
+        "stale_reset": stale_reset,
+        "re_anchored": re_anchored,
+        "batches": batches,
+    }

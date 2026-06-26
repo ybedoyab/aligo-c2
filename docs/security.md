@@ -50,6 +50,16 @@ test that asserts traversal raises.
 - Each task has an execution timeout on the node (`NODE_TASK_TIMEOUT`, default 30s),
   returning `status=timeout` instead of hanging.
 
+### Transport encryption (lab TLS)
+
+`python dev.py` enables **HTTPS** (API) and **WSS** (node + operator WebSockets) using a
+self-signed certificate in `.dev/certs/` (generated automatically). The dashboard proxies
+API/WebSocket traffic through Vite so the browser uses a single TLS origin.
+
+- Nodes connect with `wss://` and trust the lab cert via a permissive TLS context (lab only).
+- Use `python dev.py --no-tls` for plain HTTP/WS debugging.
+- Production would use proper PKI / mutual TLS — see [limitations.md](limitations.md).
+
 ### Node authentication token
 
 Nodes present `NODE_SHARED_TOKEN` in their `register` message. The server compares it in

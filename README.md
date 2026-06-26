@@ -14,7 +14,11 @@ cp .env.example .env
 python dev.py
 ```
 
-Eso levanta la aplicación completa: blockchain, contrato, API, dashboard, nodos simulados y gateway IoT.
+Eso levanta la aplicación completa: blockchain, contrato, API, dashboard, nodos simulados y gateway IoT. El canal operador↔servidor y nodo↔servidor va cifrado con **TLS/WSS** (certificado autofirmado de laboratorio; el navegador pedirá aceptarlo una vez).
+
+```bash
+python dev.py --no-tls    # solo depuración: HTTP/WS sin cifrar
+```
 
 | Servicio   | URL                          |
 |------------|------------------------------|
