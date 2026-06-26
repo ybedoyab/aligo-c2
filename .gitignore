@@ -40,3 +40,4 @@ server/c2.db
 node/identities/
 demo/reports/*.json
 demo/reports/*.md
+.claude/
