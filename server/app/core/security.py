@@ -11,8 +11,8 @@ import hmac
 from .config import settings
 
 
-def verify_agent_token(token: str | None) -> bool:
-    """Constant-time comparison of an agent-supplied token against the shared secret."""
+def verify_node_token(token: str | None) -> bool:
+    """Constant-time comparison of an node-supplied token against the shared secret."""
     if not token:
         return False
-    return hmac.compare_digest(token, settings.agent_shared_token)
+    return hmac.compare_digest(token, settings.node_shared_token)

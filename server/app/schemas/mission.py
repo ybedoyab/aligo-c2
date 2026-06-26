@@ -28,13 +28,13 @@ class MissionCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str = Field(default="", max_length=1000)
     steps: list[MissionStep] = Field(min_length=1)
-    target_agent_ids: list[str] = Field(default_factory=list)
+    target_node_ids: list[str] = Field(default_factory=list)
 
 
 class MissionStart(BaseModel):
-    """Optionally override which agents the mission runs on."""
+    """Optionally override which nodes the mission runs on."""
 
-    target_agent_ids: list[str] | None = None
+    target_node_ids: list[str] | None = None
 
 
 class MissionRead(BaseModel):
@@ -43,7 +43,7 @@ class MissionRead(BaseModel):
     description: str
     status: MissionStatus
     steps: list[dict[str, Any]]
-    target_agent_ids: list[str]
+    target_node_ids: list[str]
     is_predefined: bool
     created_at: datetime
     started_at: datetime | None

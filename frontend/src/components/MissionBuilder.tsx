@@ -2,13 +2,13 @@ import { useState } from "react";
 import { api } from "../api/client";
 import {
   ALLOWED_PLUGINS,
-  type Agent,
+  type Node,
   type MissionStep,
   type PluginName,
 } from "../types";
 
 interface Props {
-  agents: Agent[];
+  nodes: Node[];
   onChanged: () => void;
 }
 
@@ -26,7 +26,7 @@ interface DraftStep {
   argsText: string;
 }
 
-export function MissionBuilder({ agents, onChanged }: Props) {
+export function MissionBuilder({ nodes, onChanged }: Props) {
   const [name, setName] = useState("Custom Mission");
   const [description, setDescription] = useState("");
   const [steps, setSteps] = useState<DraftStep[]>([
@@ -36,7 +36,7 @@ export function MissionBuilder({ agents, onChanged }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const toggleAgent = (id: string) =>
+  const toggleNode = (id: string) =>
     setSelected((prev) =>
       prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]
     );
@@ -65,11 +65,11 @@ export function MissionBuilder({ agents, onChanged }: Props) {
         name,
         description,
         steps: parsedSteps,
-        target_agent_ids: selected,
+        target_node_ids: selected,
       });
       if (run) {
         if (selected.length === 0) {
-          throw new Error("select at least one agent to run the mission");
+          throw new Error("select at least one node to run the mission");
         }
         await api.startMission(mission.id, selected);
       }
@@ -147,15 +147,15 @@ export function MissionBuilder({ agents, onChanged }: Props) {
       </div>
 
       <div className="flex flex-col gap-2">
-        <span className="text-xs text-soc-muted">Target agents</span>
+        <span className="text-xs text-soc-muted">Target nodes</span>
         <div className="flex flex-wrap gap-2">
-          {agents.length === 0 && (
-            <span className="text-xs text-soc-muted">No agents connected.</span>
+          {nodes.length === 0 && (
+            <span className="text-xs text-soc-muted">No nodes connected.</span>
           )}
-          {agents.map((a) => (
+          {nodes.map((a) => (
             <button
               key={a.id}
-              onClick={() => toggleAgent(a.id)}
+              onClick={() => toggleNode(a.id)}
               className={`rounded-lg border px-3 py-1.5 text-xs font-mono transition-colors ${
                 selected.includes(a.id)
                   ? "border-soc-accent bg-soc-accent/15 text-soc-accent"

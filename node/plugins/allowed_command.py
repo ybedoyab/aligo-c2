@@ -13,7 +13,7 @@ import socket
 from datetime import datetime, timezone
 from typing import Any
 
-# The only commands this agent will ever "run".
+# The only commands this node will ever "run".
 ALLOWLIST: frozenset[str] = frozenset({"whoami", "hostname", "pwd", "date"})
 
 

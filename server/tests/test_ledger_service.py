@@ -11,7 +11,7 @@ from app.services import ledger_service
 
 def test_first_event_uses_genesis_previous_hash(session: Session):
     event = ledger_service.record_event(
-        session, event_type=EventType.AGENT_REGISTERED, agent_id="agent-001"
+        session, event_type=EventType.NODE_REGISTERED, node_id="node-001"
     )
     assert event.sequence == 0
     assert event.previous_hash == GENESIS_HASH
@@ -31,7 +31,7 @@ def test_events_chain_previous_hash(session: Session):
 
 def test_verify_reports_consistent_event_as_pending_chain(session: Session):
     event = ledger_service.record_event(
-        session, event_type=EventType.TASK_RESULT, task_id="t1", agent_id="agent-001"
+        session, event_type=EventType.TASK_RESULT, task_id="t1", node_id="node-001"
     )
     result = ledger_service.verify_event(session, event.id)
     assert result is not None

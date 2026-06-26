@@ -20,14 +20,14 @@ SAMPLE_MISSION_ID = "mission-lab-health-check"
 
 @router.post("/start-sample-mission")
 async def start_sample_mission(session: Session = Depends(get_session)) -> dict:
-    """One-click: run the Lab Health Check across all connected agents."""
+    """One-click: run the Lab Health Check across all connected nodes."""
     mission = mission_service.get_mission(session, SAMPLE_MISSION_ID)
     if mission is None:
         raise HTTPException(status_code=404, detail="sample mission not seeded")
 
-    targets = manager.connected_agent_ids()
+    targets = manager.connected_node_ids()
     if not targets:
-        raise HTTPException(status_code=400, detail="no agents connected")
+        raise HTTPException(status_code=400, detail="no nodes connected")
 
     mission, tasks = mission_service.start_mission(session, SAMPLE_MISSION_ID, targets)
     mission_view = MissionRead.model_validate(mission)

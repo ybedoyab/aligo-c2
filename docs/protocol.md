@@ -1,6 +1,6 @@
-# Agent ↔ Server Protocol
+# Node ↔ Server Protocol
 
-Transport: WebSocket (`/ws/agent`), JSON text frames, UTF-8. Protocol version `1.0`.
+Transport: WebSocket (`/ws/node`), JSON text frames, UTF-8. Protocol version `1.0`.
 All messages are objects with a `type` field. Inbound frames are size-capped
 (`MAX_WS_MESSAGE_BYTES`, default 256 KiB).
 
@@ -8,12 +8,12 @@ All messages are objects with a `type` field. Inbound frames are size-capped
 
 | Type | Direction | Purpose |
 |------|-----------|---------|
-| `register` | agent → server | First message; authenticate and identify. |
-| `register_ack` | server → agent | Registration accepted. |
-| `heartbeat` | agent → server | Liveness ping (every ~5s). |
-| `task` | server → agent | Execute a plugin with args. |
-| `task_ack` | agent → server | Optional acknowledgement of a task. |
-| `result` | agent → server | Structured execution result. |
+| `register` | node → server | First message; authenticate and identify. |
+| `register_ack` | server → node | Registration accepted. |
+| `heartbeat` | node → server | Liveness ping (every ~5s). |
+| `task` | server → node | Execute a plugin with args. |
+| `task_ack` | node → server | Optional acknowledgement of a task. |
+| `result` | node → server | Structured execution result. |
 | `error` | both | Error notification (non-fatal). |
 | `mission_start` | server → operator* | Mission run started (broadcast). |
 | `mission_complete` | server → operator* | Mission finished (broadcast). |
@@ -23,22 +23,22 @@ All messages are objects with a `type` field. Inbound frames are size-capped
 
 ## Handshake
 
-1. Agent connects and immediately sends `register` (including the shared `token`).
+1. Node connects and immediately sends `register` (including the shared `token`).
 2. Server validates the token (constant-time compare). On failure it sends `error` and
    closes with code `1008`.
-3. On success the server persists the agent, replies `register_ack`, anchors
-   `AGENT_REGISTERED` (or `AGENT_RECONNECTED`), and starts streaming tasks.
+3. On success the server persists the node, replies `register_ack`, anchors
+   `NODE_REGISTERED` (or `NODE_RECONNECTED`), and starts streaming tasks.
 
 ## Schemas & examples
 
-### register (agent → server)
+### register (node → server)
 
 ```json
 {
   "type": "register",
   "protocol": "1.0",
-  "agent_id": "agent-001",
-  "hostname": "lab-agent-001",
+  "node_id": "node-001",
+  "hostname": "lab-node-001",
   "os": "Linux",
   "username": "lab-user",
   "token": "change-me-lab-token",
@@ -46,21 +46,21 @@ All messages are objects with a `type` field. Inbound frames are size-capped
 }
 ```
 
-Validated by `AgentRegister` ([`schemas/agent.py`](../server/app/schemas/agent.py)).
+Validated by `NodeRegister` ([`schemas/node.py`](../server/app/schemas/node.py)).
 
-### register_ack (server → agent)
-
-```json
-{ "type": "register_ack", "agent_id": "agent-001", "server_time": "2026-06-26T10:00:00.123Z" }
-```
-
-### heartbeat (agent → server)
+### register_ack (server → node)
 
 ```json
-{ "type": "heartbeat", "agent_id": "agent-001", "timestamp": "2026-06-26T10:00:05Z" }
+{ "type": "register_ack", "node_id": "node-001", "server_time": "2026-06-26T10:00:00.123Z" }
 ```
 
-### task (server → agent)
+### heartbeat (node → server)
+
+```json
+{ "type": "heartbeat", "node_id": "node-001", "timestamp": "2026-06-26T10:00:05Z" }
+```
+
+### task (server → node)
 
 ```json
 {
@@ -75,22 +75,22 @@ Validated by `AgentRegister` ([`schemas/agent.py`](../server/app/schemas/agent.p
 
 `plugin` must be in the allowlist; unknown plugins yield a `failed` result.
 
-### task_ack (agent → server)
+### task_ack (node → server)
 
 ```json
-{ "type": "task_ack", "task_id": "task-123", "agent_id": "agent-001", "timestamp": "2026-06-26T10:01:00Z" }
+{ "type": "task_ack", "task_id": "task-123", "node_id": "node-001", "timestamp": "2026-06-26T10:01:00Z" }
 ```
 
-### result (agent → server)
+### result (node → server)
 
 ```json
 {
   "type": "result",
   "task_id": "task-123",
   "mission_id": "mission-001",
-  "agent_id": "agent-001",
+  "node_id": "node-001",
   "status": "success",
-  "stdout": "{\"os\":\"Linux\",\"hostname\":\"lab-agent-001\"}",
+  "stdout": "{\"os\":\"Linux\",\"hostname\":\"lab-node-001\"}",
   "stderr": "",
   "exit_code": 0,
   "duration_ms": 42,
@@ -105,12 +105,12 @@ is the plugin's JSON-encoded return value.
 ### error (either direction)
 
 ```json
-{ "type": "error", "agent_id": "agent-001", "error": "invalid agent token", "timestamp": "..." }
+{ "type": "error", "node_id": "node-001", "error": "invalid node token", "timestamp": "..." }
 ```
 
 ## States
 
-- **Agent status**: `online`, `warning`, `offline`, `error`.
+- **Node status**: `online`, `warning`, `offline`, `error`.
 - **Mission status**: `draft`, `running`, `completed`, `failed`, `partially_failed`.
 - **Task status**: `pending`, `sent`, `running`, `success`, `failed`, `timeout`.
 
@@ -123,12 +123,12 @@ is the plugin's JSON-encoded return value.
 | Bad/missing token | `error` + close `1008`. |
 | Message exceeds size cap | `error`, message ignored. |
 | Unknown message type | `error`, connection kept open. |
-| Unknown plugin | Agent returns `result` with `status=failed`. |
-| Plugin timeout | Agent returns `result` with `status=timeout`, `exit_code=124`. |
+| Unknown plugin | Node returns `result` with `status=failed`. |
+| Plugin timeout | Node returns `result` with `status=timeout`, `exit_code=124`. |
 
 ## Operator channel (`/ws/operator`)
 
-Server → operator broadcast messages: `connected`, `agent_update`, `task_update`,
+Server → operator broadcast messages: `connected`, `node_update`, `task_update`,
 `result`, `mission_update`, `ledger_event`. Operators may send `{"type":"ping"}` and
 receive `{"type":"pong"}`.
 

@@ -23,7 +23,7 @@ async def emit_event(
     event_type: EventType,
     mission_id: str = "",
     task_id: str = "",
-    agent_id: str = "",
+    node_id: str = "",
     data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Record a ledger event (off-chain + best-effort on-chain) and broadcast it."""
@@ -35,7 +35,7 @@ async def emit_event(
                 event_type=event_type,
                 mission_id=mission_id,
                 task_id=task_id,
-                agent_id=agent_id,
+                node_id=node_id,
                 data=data or {},
             )
             return LedgerEventRead.model_validate(event).model_dump(mode="json")

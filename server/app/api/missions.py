@@ -54,18 +54,18 @@ async def start_mission(
     if mission is None:
         raise HTTPException(status_code=404, detail="mission not found")
 
-    # Resolve targets: explicit body > mission default > all connected agents.
+    # Resolve targets: explicit body > mission default > all connected nodes.
     targets: list[str] = []
-    if body and body.target_agent_ids:
-        targets = body.target_agent_ids
-    elif mission.target_agent_ids:
-        targets = mission.target_agent_ids
+    if body and body.target_node_ids:
+        targets = body.target_node_ids
+    elif mission.target_node_ids:
+        targets = mission.target_node_ids
     else:
-        targets = manager.connected_agent_ids()
+        targets = manager.connected_node_ids()
 
     if not targets:
         raise HTTPException(
-            status_code=400, detail="no target agents (none connected and none specified)"
+            status_code=400, detail="no target nodes (none connected and none specified)"
         )
 
     mission, tasks = mission_service.start_mission(session, mission_id, targets)

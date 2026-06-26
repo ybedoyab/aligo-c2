@@ -6,7 +6,7 @@
 # ---------------------------------------------------------------------------
 
 .DEFAULT_GOAL := help
-.PHONY: help dev server frontend blockchain deploy-contract agent demo test clean install
+.PHONY: help dev server frontend blockchain deploy-contract node demo test clean install
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -14,7 +14,7 @@ help: ## Show this help
 
 install: ## Install all dependencies (server, frontend, blockchain)
 	cd server && python -m pip install -r requirements.txt
-	cd agent && python -m pip install -r requirements.txt
+	cd node && python -m pip install -r requirements.txt
 	cd frontend && npm install
 	cd blockchain && npm install
 
@@ -33,13 +33,13 @@ blockchain: ## Start the local Hardhat node
 deploy-contract: ## Deploy ExecutionLedger.sol to the local node
 	cd blockchain && npx hardhat run scripts/deploy.ts --network localhost
 
-agent: ## Run a single agent (override with AGENT_ID=agent-002)
-	cd agent && python agent.py --agent-id $(or $(AGENT_ID),agent-001)
+node: ## Run a single node (override with NODE_ID=node-002)
+	cd node && python node.py --node-id $(or $(NODE_ID),node-001)
 
-demo: ## Launch a fleet of simulated agents
-	cd agent && python agent.py --simulate-count 3
+demo: ## Launch a fleet of simulated nodes
+	cd node && python node.py --simulate-count 3
 
-test: ## Run backend, agent and contract tests
+test: ## Run backend, node and contract tests
 	cd server && python -m pytest -q
 	cd blockchain && npx hardhat test
 

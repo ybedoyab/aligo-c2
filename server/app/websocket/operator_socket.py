@@ -1,6 +1,6 @@
 """WebSocket endpoint for operator dashboards (/ws/operator).
 
-Operators receive a live stream of agent/task/result/mission/ledger updates. The channel
+Operators receive a live stream of node/task/result/mission/ledger updates. The channel
 is read-mostly; clients may send a lightweight 'ping' to keep the connection warm.
 """
 

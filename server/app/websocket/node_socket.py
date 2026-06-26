@@ -1,4 +1,4 @@
-"""WebSocket endpoint handling agent connections (/ws/agent)."""
+"""WebSocket endpoint handling node connections (/ws/node)."""
 
 from __future__ import annotations
 
@@ -11,15 +11,15 @@ from sqlmodel import Session
 
 from app.core.config import settings
 from app.core.enums import EventType, TaskStatus
-from app.core.security import verify_agent_token
+from app.core.security import verify_node_token
 from app.db.database import engine
-from app.schemas.agent import AgentRead, AgentRegister
+from app.schemas.node import NodeRead, NodeRegister
 from app.schemas.result import ResultIn
-from app.services import agent_service, mission_service, result_service
+from app.services import node_service, mission_service, result_service
 from app.websocket import notifier
 from app.websocket.manager import manager
 
-logger = logging.getLogger("aligo.ws.agent")
+logger = logging.getLogger("aligo.ws.node")
 
 
 async def _reject(websocket: WebSocket, reason: str, code: int = 1008) -> None:
@@ -30,9 +30,9 @@ async def _reject(websocket: WebSocket, reason: str, code: int = 1008) -> None:
     await websocket.close(code=code)
 
 
-async def agent_endpoint(websocket: WebSocket) -> None:
+async def node_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
-    agent_id: str | None = None
+    node_id: str | None = None
     try:
         # ---- Registration handshake ----
         raw = await websocket.receive_text()
@@ -50,42 +50,42 @@ async def agent_endpoint(websocket: WebSocket) -> None:
             return
 
         try:
-            reg = AgentRegister(**msg)
+            reg = NodeRegister(**msg)
         except ValidationError as exc:
             await _reject(websocket, f"invalid register payload: {exc.errors()}")
             return
 
-        if not verify_agent_token(reg.token):
-            await _reject(websocket, "invalid agent token")
+        if not verify_node_token(reg.token):
+            await _reject(websocket, "invalid node token")
             return
 
         with Session(engine) as session:
-            agent, is_new = agent_service.register_agent(session, reg)
-            agent_payload = AgentRead.model_validate(agent).model_dump(mode="json")
-        agent_id = reg.agent_id
-        manager.register_agent(agent_id, websocket)
+            node, is_new = node_service.register_node(session, reg)
+            node_payload = NodeRead.model_validate(node).model_dump(mode="json")
+        node_id = reg.node_id
+        manager.register_node(node_id, websocket)
 
         await websocket.send_json(
             {
                 "type": "register_ack",
-                "agent_id": agent_id,
-                "server_time": agent_payload["last_seen"],
+                "node_id": node_id,
+                "server_time": node_payload["last_seen"],
             }
         )
 
         event_type = (
-            EventType.AGENT_REGISTERED if is_new else EventType.AGENT_RECONNECTED
+            EventType.NODE_REGISTERED if is_new else EventType.NODE_RECONNECTED
         )
         await notifier.emit_event(
             event_type=event_type,
-            agent_id=agent_id,
+            node_id=node_id,
             data={
                 "hostname": reg.hostname,
                 "os": reg.os,
                 "username": reg.username,
             },
         )
-        await notifier.broadcast({"type": "agent_update", "data": agent_payload})
+        await notifier.broadcast({"type": "node_update", "data": node_payload})
 
         # ---- Message loop ----
         while True:
@@ -101,46 +101,46 @@ async def agent_endpoint(websocket: WebSocket) -> None:
                 await websocket.send_json({"type": "error", "error": "invalid JSON"})
                 continue
 
-            await _handle_agent_message(websocket, agent_id, msg)
+            await _handle_node_message(websocket, node_id, msg)
 
     except WebSocketDisconnect:
-        logger.info("Agent socket disconnected: %s", agent_id)
+        logger.info("Node socket disconnected: %s", node_id)
     except Exception as exc:  # pragma: no cover - defensive
-        logger.exception("Agent socket error (%s): %s", agent_id, exc)
+        logger.exception("Node socket error (%s): %s", node_id, exc)
     finally:
-        if agent_id:
-            manager.remove_agent(agent_id)
+        if node_id:
+            manager.remove_node(node_id)
             with Session(engine) as session:
-                agent = agent_service.mark_disconnected(session, agent_id)
-                agent_payload = (
-                    AgentRead.model_validate(agent).model_dump(mode="json")
-                    if agent
+                node = node_service.mark_disconnected(session, node_id)
+                node_payload = (
+                    NodeRead.model_validate(node).model_dump(mode="json")
+                    if node
                     else None
                 )
             await notifier.emit_event(
-                event_type=EventType.AGENT_DISCONNECTED, agent_id=agent_id
+                event_type=EventType.NODE_DISCONNECTED, node_id=node_id
             )
-            if agent_payload:
+            if node_payload:
                 await notifier.broadcast(
-                    {"type": "agent_update", "data": agent_payload}
+                    {"type": "node_update", "data": node_payload}
                 )
 
 
-async def _handle_agent_message(
-    websocket: WebSocket, agent_id: str, msg: dict
+async def _handle_node_message(
+    websocket: WebSocket, node_id: str, msg: dict
 ) -> None:
     msg_type = msg.get("type")
 
     if msg_type == "heartbeat":
         with Session(engine) as session:
-            agent = agent_service.heartbeat(session, agent_id)
+            node = node_service.heartbeat(session, node_id)
             payload = (
-                AgentRead.model_validate(agent).model_dump(mode="json")
-                if agent
+                NodeRead.model_validate(node).model_dump(mode="json")
+                if node
                 else None
             )
         if payload:
-            await notifier.broadcast({"type": "agent_update", "data": payload})
+            await notifier.broadcast({"type": "node_update", "data": payload})
         return
 
     if msg_type == "task_ack":
@@ -152,7 +152,7 @@ async def _handle_agent_message(
         return
 
     if msg_type == "error":
-        logger.warning("Agent %s reported error: %s", agent_id, msg.get("error"))
+        logger.warning("Node %s reported error: %s", node_id, msg.get("error"))
         return
 
     await websocket.send_json(
@@ -190,7 +190,7 @@ async def _handle_result(msg: dict) -> None:
         event_type=event_type,
         mission_id=payload.mission_id,
         task_id=payload.task_id,
-        agent_id=payload.agent_id,
+        node_id=payload.node_id,
         data={
             "status": str(payload.status),
             "exit_code": payload.exit_code,

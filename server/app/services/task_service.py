@@ -24,14 +24,14 @@ def create_task(
     session: Session,
     *,
     mission_id: str,
-    agent_id: str,
+    node_id: str,
     plugin: str,
     args: dict[str, Any] | None = None,
 ) -> Task:
     task = Task(
         id=new_task_id(),
         mission_id=mission_id,
-        agent_id=agent_id,
+        node_id=node_id,
         plugin=plugin,
         args=args or {},
         status=TaskStatus.PENDING,
@@ -72,17 +72,28 @@ def get_task(session: Session, task_id: str) -> Task | None:
 
 
 def list_tasks(
-    session: Session, mission_id: str | None = None, limit: int = 200
+    session: Session,
+    mission_id: str | None = None,
+    node_id: str | None = None,
+    limit: int = 200,
 ) -> list[Task]:
     statement = select(Task).order_by(Task.created_at.desc()).limit(limit)
     if mission_id:
-        statement = (
+        statement = statement.where(Task.mission_id == mission_id)
+    if node_id:
+        statement = statement.where(Task.node_id == node_id)
+    return list(session.exec(statement).all())
+
+
+def list_tasks_for_node(session: Session, node_id: str, limit: int = 100) -> list[Task]:
+    return list(
+        session.exec(
             select(Task)
-            .where(Task.mission_id == mission_id)
+            .where(Task.node_id == node_id)
             .order_by(Task.created_at.desc())
             .limit(limit)
-        )
-    return list(session.exec(statement).all())
+        ).all()
+    )
 
 
 def list_tasks_for_mission(session: Session, mission_id: str) -> list[Task]:

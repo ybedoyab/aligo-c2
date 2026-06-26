@@ -2,9 +2,28 @@
 
 from __future__ import annotations
 
+import json
+import logging
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger("aligo.config")
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_DEPLOYMENT_JSON = _REPO_ROOT / "deployment.json"
+
+
+def _contract_from_deployment() -> str:
+    """Fallback: read address written by `npx hardhat run scripts/deploy.ts`."""
+    if not _DEPLOYMENT_JSON.is_file():
+        return ""
+    try:
+        data = json.loads(_DEPLOYMENT_JSON.read_text(encoding="utf-8"))
+        return str(data.get("address", "")).strip()
+    except (json.JSONDecodeError, OSError):
+        return ""
 
 
 class Settings(BaseSettings):
@@ -23,8 +42,8 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "sqlite:///./c2.db"
 
-    # Agent auth
-    agent_shared_token: str = "change-me-lab-token"
+    # Node auth
+    node_shared_token: str = "change-me-lab-token"
 
     # Ledger / blockchain
     ledger_enabled: bool = True
@@ -38,7 +57,7 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:5173"
 
     # WebSocket / task safety limits
-    max_ws_message_bytes: int = 256 * 1024  # 256 KiB cap on inbound WS messages
+    max_ws_message_bytes: int = 256 * 1024
     task_timeout_seconds: int = 30
 
     # Heartbeat thresholds (seconds)
@@ -46,17 +65,27 @@ class Settings(BaseSettings):
     heartbeat_offline_seconds: int = 30
     heartbeat_monitor_interval_seconds: int = 5
 
+    def resolved_contract_address(self) -> str:
+        """CONTRACT_ADDRESS from env, or deployment.json if env is empty."""
+        if self.contract_address.strip():
+            return self.contract_address.strip()
+        return _contract_from_deployment()
+
     @property
     def cors_origins(self) -> list[str]:
-        """Origins allowed by CORS (frontend dev + common localhost variants)."""
         origins = {self.frontend_url, "http://localhost:5173", "http://127.0.0.1:5173"}
         return [o for o in origins if o]
 
 
 @lru_cache
 def get_settings() -> Settings:
-    """Return a cached Settings instance."""
-    return Settings()
+    s = Settings()
+    resolved = s.resolved_contract_address()
+    if resolved and not s.contract_address.strip():
+        logger.info("Using CONTRACT_ADDRESS from deployment.json: %s", resolved)
+        # Mutate so contract_client sees the resolved address.
+        object.__setattr__(s, "contract_address", resolved)
+    return s
 
 
 settings = get_settings()

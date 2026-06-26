@@ -25,7 +25,7 @@ It is a clean, demonstrable fit for "prove this operation wasn't altered."
 | Stored on-chain (`ExecutionLedger.sol`) | Stored off-chain (DB) |
 |------------------------------------------|------------------------|
 | `eventId` | Full canonical payload (the exact hashed dict) |
-| `missionId`, `taskId`, `agentId` | `stdout`, `stderr`, metadata |
+| `missionId`, `taskId`, `nodeId` | `stdout`, `stderr`, metadata |
 | `eventType` | `tx_hash`, `block_number`, `onchain_status` |
 | `payloadHash` (bytes32) | Timestamps, sequence |
 | `previousHash` (bytes32) | |
@@ -45,7 +45,7 @@ and minimal routing metadata.
      "event_type": "TASK_RESULT",
      "mission_id": "mission-lab-health-check",
      "task_id": "task-abc123",
-     "agent_id": "agent-001",
+     "node_id": "node-001",
      "data": { "status": "success", "exit_code": 0, "duration_ms": 42, "stdout": "..." },
      "previous_hash": "…64 hex…",
      "timestamp": "2026-06-26T10:01:01.500Z"
@@ -59,6 +59,34 @@ and minimal routing metadata.
 
 Because the canonical form is deterministic, the hash is exactly reproducible during
 verification.
+
+## Chain status
+
+`GET /api/ledger/status` returns a structured status for the UI:
+
+| Status | Meaning |
+|--------|---------|
+| `connected` | RPC reachable, contract configured, client ready |
+| `contract_not_configured` | `CONTRACT_ADDRESS` empty and no `deployment.json` |
+| `disconnected` | Contract set but RPC unreachable |
+| `local_only` | `LEDGER_ENABLED=false` |
+
+The server also loads `CONTRACT_ADDRESS` from repo-root `deployment.json` (written by
+`npx hardhat run scripts/deploy.ts`) when `.env` is empty. **Restart the server** after
+deploying or changing the address.
+
+## Anchoring pending events
+
+Events created while the chain was down stay `pending_chain`. Retry with:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/ledger/events/{event_id}/anchor` | Anchor one event |
+| `POST /api/ledger/anchor-pending` | Anchor all pending (up to 50, oldest first) |
+
+The **Ledger** page and **Demo** page expose **Anchor pending events** for the jury.
+
+On success, `onchain_status` becomes `anchored`, with `tx_hash` and `block_number` stored.
 
 ## How verification works
 
@@ -77,7 +105,7 @@ verification.
 
 [`blockchain/contracts/ExecutionLedger.sol`](../blockchain/contracts/ExecutionLedger.sol):
 
-- `struct LedgerEvent { eventId, missionId, taskId, agentId, eventType, payloadHash, previousHash, timestamp }`
+- `struct LedgerEvent { eventId, missionId, taskId, nodeId, eventType, payloadHash, previousHash, timestamp }`
 - `mapping(string => LedgerEvent) eventsById;` and `string[] eventIds;`
 - `event LedgerEventRegistered(...)`
 - `registerEvent(...)` — reverts on duplicate `eventId`.
@@ -90,7 +118,7 @@ verification.
 1) TASK_RESULT event created
    payload_hash = 9f2c…ab12
    previous_hash = 4d77…0e9a
-   tx 0xabc… mined in block #12  → onchain_status = confirmed
+   tx 0xabc… mined in block #12  → onchain_status = anchored
 
 2) Operator clicks "Verify"
    recompute(payload) = 9f2c…ab12      (== stored)      local_match  = true

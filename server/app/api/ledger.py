@@ -1,4 +1,4 @@
-"""Ledger REST endpoints: list events, fetch one, verify integrity."""
+"""Ledger REST endpoints: list events, fetch one, verify integrity, anchor on-chain."""
 
 from __future__ import annotations
 
@@ -6,10 +6,26 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
 from app.db.database import get_session
-from app.schemas.ledger import LedgerEventRead, LedgerVerifyResult
+from app.schemas.ledger import (
+    AnchorResult,
+    ChainStatusRead,
+    LedgerEventRead,
+    LedgerStats,
+    LedgerVerifyResult,
+)
 from app.services import ledger_service
 
 router = APIRouter(prefix="/api/ledger", tags=["ledger"])
+
+
+@router.get("/status", response_model=ChainStatusRead)
+def chain_status() -> ChainStatusRead:
+    return ledger_service.get_chain_status()
+
+
+@router.get("/stats", response_model=LedgerStats)
+def ledger_stats(session: Session = Depends(get_session)) -> LedgerStats:
+    return ledger_service.get_ledger_stats(session)
 
 
 @router.get("/events", response_model=list[LedgerEventRead])
@@ -35,3 +51,15 @@ def verify_event(
     if result is None:
         raise HTTPException(status_code=404, detail="ledger event not found")
     return result
+
+
+@router.post("/events/{event_id}/anchor", response_model=AnchorResult)
+def anchor_event(
+    event_id: str, session: Session = Depends(get_session)
+) -> AnchorResult:
+    return ledger_service.anchor_event(session, event_id)
+
+
+@router.post("/anchor-pending", response_model=list[AnchorResult])
+def anchor_pending(session: Session = Depends(get_session)) -> list[AnchorResult]:
+    return ledger_service.anchor_pending_events(session)

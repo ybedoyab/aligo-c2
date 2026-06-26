@@ -1,4 +1,4 @@
-"""In-memory WebSocket connection manager for agents and operators."""
+"""In-memory WebSocket connection manager for nodes and operators."""
 
 from __future__ import annotations
 
@@ -11,38 +11,38 @@ logger = logging.getLogger("aligo.ws")
 
 
 class ConnectionManager:
-    """Tracks live agent sockets and operator (dashboard) sockets."""
+    """Tracks live node sockets and operator (dashboard) sockets."""
 
     def __init__(self) -> None:
-        self._agents: dict[str, WebSocket] = {}
+        self._nodes: dict[str, WebSocket] = {}
         self._operators: set[WebSocket] = set()
 
-    # -- Agents ---------------------------------------------------------------
-    def register_agent(self, agent_id: str, websocket: WebSocket) -> None:
-        self._agents[agent_id] = websocket
-        logger.info("Agent connected: %s (total=%d)", agent_id, len(self._agents))
+    # -- Nodes ---------------------------------------------------------------
+    def register_node(self, node_id: str, websocket: WebSocket) -> None:
+        self._nodes[node_id] = websocket
+        logger.info("Node connected: %s (total=%d)", node_id, len(self._nodes))
 
-    def remove_agent(self, agent_id: str) -> None:
-        self._agents.pop(agent_id, None)
-        logger.info("Agent disconnected: %s (total=%d)", agent_id, len(self._agents))
+    def remove_node(self, node_id: str) -> None:
+        self._nodes.pop(node_id, None)
+        logger.info("Node disconnected: %s (total=%d)", node_id, len(self._nodes))
 
-    def is_agent_connected(self, agent_id: str) -> bool:
-        return agent_id in self._agents
+    def is_node_connected(self, node_id: str) -> bool:
+        return node_id in self._nodes
 
-    def connected_agent_ids(self) -> list[str]:
-        return list(self._agents.keys())
+    def connected_node_ids(self) -> list[str]:
+        return list(self._nodes.keys())
 
-    async def send_to_agent(self, agent_id: str, message: dict[str, Any]) -> bool:
-        """Send a JSON message to a specific agent. Returns False if not connected."""
-        ws = self._agents.get(agent_id)
+    async def send_to_node(self, node_id: str, message: dict[str, Any]) -> bool:
+        """Send a JSON message to a specific node. Returns False if not connected."""
+        ws = self._nodes.get(node_id)
         if ws is None:
             return False
         try:
             await ws.send_json(message)
             return True
         except Exception as exc:  # pragma: no cover - transport dependent
-            logger.warning("Failed sending to agent %s: %s", agent_id, exc)
-            self.remove_agent(agent_id)
+            logger.warning("Failed sending to node %s: %s", node_id, exc)
+            self.remove_node(node_id)
             return False
 
     # -- Operators ------------------------------------------------------------

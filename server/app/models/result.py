@@ -21,7 +21,7 @@ class Result(SQLModel, table=True):
     id: str = Field(primary_key=True)
     task_id: str = Field(foreign_key="tasks.id", index=True)
     mission_id: str = Field(index=True)
-    agent_id: str = Field(index=True)
+    node_id: str = Field(index=True)
     status: TaskStatus
     stdout: str = ""
     stderr: str = ""

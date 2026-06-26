@@ -40,27 +40,27 @@ services:
     depends_on:
       - server
 
-  agent-1:
+  node-1:
     build:
-      context: ./agent
-    container_name: aligo-agent-1
+      context: ./node
+    container_name: aligo-node-1
     env_file:
       - .env
     environment:
-      - C2_WS_URL=ws://server:8000/ws/agent
-      - AGENT_ID=agent-001
+      - C2_WS_URL=ws://server:8000/ws/node
+      - NODE_ID=node-001
     depends_on:
       - server
 
-  agent-2:
+  node-2:
     build:
-      context: ./agent
-    container_name: aligo-agent-2
+      context: ./node
+    container_name: aligo-node-2
     env_file:
       - .env
     environment:
-      - C2_WS_URL=ws://server:8000/ws/agent
-      - AGENT_ID=agent-002
+      - C2_WS_URL=ws://server:8000/ws/node
+      - NODE_ID=node-002
     depends_on:
       - server
 

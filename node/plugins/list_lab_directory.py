@@ -1,4 +1,4 @@
-"""list_lab_directory plugin: list files ONLY inside agent/lab_workspace.
+"""list_lab_directory plugin: list files ONLY inside node/lab_workspace.
 
 Path traversal is strictly prevented: the resolved target must stay within the sandbox.
 """
@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-# agent/plugins/list_lab_directory.py -> agent/lab_workspace
+# node/plugins/list_lab_directory.py -> node/lab_workspace
 _SANDBOX_ROOT = (Path(__file__).resolve().parent.parent / "lab_workspace").resolve()
 
 

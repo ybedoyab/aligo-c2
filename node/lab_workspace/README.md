@@ -14,5 +14,5 @@ lab_workspace/
     └── todo.txt
 ```
 
-Nothing in this folder is executed. It exists purely so agents have a safe, bounded
+Nothing in this folder is executed. It exists purely so nodes have a safe, bounded
 directory to enumerate.

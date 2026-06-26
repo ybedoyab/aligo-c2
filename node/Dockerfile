@@ -10,5 +10,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# AGENT_ID and C2_WS_URL are provided via environment (see docker-compose.yml).
-CMD ["sh", "-c", "python agent.py --agent-id ${AGENT_ID:-agent-001}"]
+# NODE_ID and C2_WS_URL are provided via environment (see docker-compose.yml).
+CMD ["sh", "-c", "python node.py --node-id ${NODE_ID:-node-001}"]

@@ -1,4 +1,4 @@
-"""Dispatch tasks to connected agents over WebSocket and record ledger events."""
+"""Dispatch tasks to connected nodes over WebSocket and record ledger events."""
 
 from __future__ import annotations
 
@@ -22,14 +22,14 @@ def _now_iso() -> str:
 
 
 async def dispatch_task(task_id: str) -> bool:
-    """Send a single task to its agent. Marks it failed if the agent is offline."""
+    """Send a single task to its node. Marks it failed if the node is offline."""
     with Session(engine) as session:
         task = task_service.get_task(session, task_id)
         if task is None:
             return False
         task_view = TaskRead.model_validate(task).model_dump(mode="json")
 
-    agent_id = task_view["agent_id"]
+    node_id = task_view["node_id"]
     message = {
         "type": "task",
         "task_id": task_view["id"],
@@ -39,7 +39,7 @@ async def dispatch_task(task_id: str) -> bool:
         "timestamp": _now_iso(),
     }
 
-    delivered = await manager.send_to_agent(agent_id, message)
+    delivered = await manager.send_to_node(node_id, message)
 
     if delivered:
         with Session(engine) as session:
@@ -49,13 +49,13 @@ async def dispatch_task(task_id: str) -> bool:
             event_type=EventType.TASK_SENT,
             mission_id=task_view["mission_id"],
             task_id=task_view["id"],
-            agent_id=agent_id,
+            node_id=node_id,
             data={"plugin": task_view["plugin"], "args": task_view["args"]},
         )
         await notifier.broadcast({"type": "task_update", "data": task_view})
         return True
 
-    # Agent not connected: mark the task failed so missions don't hang forever.
+    # Node not connected: mark the task failed so missions don't hang forever.
     with Session(engine) as session:
         task = task_service.set_status(session, task_id, TaskStatus.FAILED)
         task_view = TaskRead.model_validate(task).model_dump(mode="json")
@@ -63,11 +63,11 @@ async def dispatch_task(task_id: str) -> bool:
         event_type=EventType.TASK_FAILED,
         mission_id=task_view["mission_id"],
         task_id=task_view["id"],
-        agent_id=agent_id,
-        data={"reason": "agent not connected"},
+        node_id=node_id,
+        data={"reason": "node not connected"},
     )
     await notifier.broadcast({"type": "task_update", "data": task_view})
-    logger.warning("Task %s not delivered: agent %s offline", task_id, agent_id)
+    logger.warning("Task %s not delivered: node %s offline", task_id, node_id)
     return False
 
 

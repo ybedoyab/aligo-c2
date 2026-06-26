@@ -5,9 +5,9 @@
 
 ## Pitch
 
-> A mission-based laboratory C2 with modular agents and verifiable, blockchain-anchored
+> A mission-based laboratory C2 with modular nodes and verifiable, blockchain-anchored
 > auditing. Instead of being a plain remote console, it lets you create reusable missions,
-> run them across multiple agents, monitor results in real time, and register evidence
+> run them across multiple nodes, monitor results in real time, and register evidence
 > hashes on a private blockchain to prove the operation was not tampered with.
 
 ## Ethical notice (read first)
@@ -15,7 +15,7 @@
 This project is intended **exclusively** for closed, controlled, and **authorized**
 laboratory environments. It deliberately **does not** implement real malware, evasion,
 stealth, aggressive persistence, antivirus bypass, real lateral movement, exfiltration,
-credential theft, or offensive execution against third parties. Agents only run a small
+credential theft, or offensive execution against third parties. Nodes only run a small
 **allowlist of safe plugins** and never expose an arbitrary shell. See
 [`docs/security.md`](docs/security.md) and [`docs/limitations.md`](docs/limitations.md).
 
@@ -24,15 +24,15 @@ credential theft, or offensive execution against third parties. Agents only run 
 ```mermaid
 flowchart LR
   Operator["React Dashboard<br/>(Vite + TS + Tailwind)"] -->|"REST + /ws/operator"| Server
-  Server["FastAPI C2 Server<br/>(REST + WebSockets)"] -->|"/ws/agent"| Agent["Python Agent<br/>(asyncio + safe plugins)"]
+  Server["FastAPI C2 Server<br/>(REST + WebSockets)"] -->|"/ws/node"| NodeRuntime["Python Node<br/>(asyncio + safe plugins)"]
   Server -->|SQLModel| DB[("SQLite / PostgreSQL")]
   Server -->|web3.py| Chain["Hardhat node<br/>ExecutionLedger.sol"]
 ```
 
 | Component | Stack | Responsibility |
 |-----------|-------|----------------|
-| Server | Python 3.12, FastAPI, WebSockets, SQLModel | Coordinates agents, missions, tasks, ledger |
-| Agent | Python 3.12, asyncio, websockets | Connects, heartbeats, runs safe plugins |
+| Server | Python 3.12, FastAPI, WebSockets, SQLModel | Coordinates nodes, missions, tasks, ledger |
+| Node | Python 3.12, asyncio, websockets | Connects, heartbeats, runs safe plugins |
 | Frontend | React, Vite, TypeScript, Tailwind | Operator dashboard + jury demo |
 | Blockchain | Hardhat, Solidity | On-chain proof-of-execution ledger |
 | Bridge | web3.py | Server ↔ contract integration |
@@ -101,21 +101,21 @@ npm install
 npm run dev                 # http://localhost:5173
 ```
 
-### 5. Agents (terminal 5)
+### 5. Nodes (terminal 5)
 
 ```bash
-cd agent
+cd node
 python -m pip install -r requirements.txt
-python agent.py --agent-id agent-001
+python node.py --node-id node-001
 # or launch a simulated fleet:
-python agent.py --simulate-count 3
+python node.py --simulate-count 3
 ```
 
 ## Running a mission
 
-1. Open the dashboard and confirm agents show **online** under **Agents**.
+1. Open the dashboard and confirm nodes show **online** under **Nodes**.
 2. Go to **Missions**, pick a predefined mission (e.g. *Lab Health Check*) or build one.
-3. Select target agents and start the mission.
+3. Select target nodes and start the mission.
 4. Watch tasks move `pending → sent → running → success` and results stream in.
 5. Open **Ledger** to see the chained events; click **Verify** on any event.
 
@@ -135,7 +135,7 @@ script in [`demo/video-script.md`](demo/video-script.md). Sample data lives in
 [`demo/sample-missions.json`](demo/sample-missions.json).
 
 Expected demo flow: start blockchain → deploy contract → start server → start frontend →
-connect 2–3 agents → see them online → create *Lab Health Check* → run across agents →
+connect 2–3 nodes → see them online → create *Lab Health Check* → run across nodes →
 watch live results → inspect ledger events → verify integrity → show the timeline replay.
 
 ## Documentation
@@ -144,6 +144,8 @@ watch live results → inspect ledger events → verify integrity → show the t
 - [Protocol](docs/protocol.md)
 - [Security](docs/security.md)
 - [Blockchain Ledger](docs/blockchain-ledger.md)
+- [Task Evidence](docs/task-evidence.md)
+- [Operator Console](docs/operator-console.md)
 - [Deployment](docs/deployment.md)
 - [Demo Script](docs/demo-script.md)
 - [Scoring Strategy](docs/scoring-strategy.md)

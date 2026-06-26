@@ -3,15 +3,16 @@ import { useC2 } from "../store";
 
 const NAV = [
   { to: "/", label: "Dashboard", end: true },
-  { to: "/agents", label: "Agents" },
+  { to: "/nodes", label: "Nodes" },
   { to: "/missions", label: "Missions" },
+  { to: "/console", label: "Console" },
   { to: "/ledger", label: "Ledger" },
   { to: "/demo", label: "Demo" },
 ];
 
 export function Layout() {
-  const { wsConnected, health, agents } = useC2();
-  const online = agents.filter((a) => a.status === "online").length;
+  const { wsConnected, health, nodes } = useC2();
+  const online = nodes.filter((a) => a.status === "online").length;
 
   return (
     <div className="min-h-screen flex">
@@ -48,12 +49,23 @@ export function Layout() {
             {wsConnected ? "Live" : "Disconnected"}
           </div>
           <div>
-            Ledger:{" "}
-            <span className={health?.ledger_available ? "text-soc-ok" : "text-soc-warn"}>
-              {health?.ledger_available ? "on-chain" : "local only"}
+            Chain:{" "}
+            <span
+              className={
+                health?.chain_status === "connected"
+                  ? "text-soc-ok"
+                  : "text-soc-warn"
+              }
+            >
+              {health?.chain_status ?? (health?.ledger_available ? "connected" : "local")}
             </span>
           </div>
-          <div>{online} agents online</div>
+          {health?.contract_address && (
+            <div className="font-mono truncate" title={health.contract_address}>
+              {health.contract_address.slice(0, 10)}…
+            </div>
+          )}
+          <div>{online} nodes online</div>
         </div>
       </aside>
 

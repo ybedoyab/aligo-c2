@@ -1,7 +1,7 @@
 # Video Script (ready to record)
 
 Target length: ~5 minutes. Record at 1080p+. Have the stack running and the **Demo** page
-open before you hit record. Keep one terminal visible for launching agents.
+open before you hit record. Keep one terminal visible for launching nodes.
 
 ---
 
@@ -22,20 +22,20 @@ open before you hit record. Keep one terminal visible for launching agents.
 **Show:** The architecture diagram (README or `docs/architecture.md`).
 
 **Say:**
-> "Four pieces: a React operator dashboard, a FastAPI server, modular Python agents over
-> WebSockets, and a private blockchain anchoring a Proof-of-Execution Ledger. Agents only
+> "Four pieces: a React operator dashboard, a FastAPI server, modular Python nodes over
+> WebSockets, and a private blockchain anchoring a Proof-of-Execution Ledger. Nodes only
 > run a safe allowlist of plugins — there's no arbitrary shell."
 
 ---
 
-## Scene 3 — Connect agents (0:50–1:30)
+## Scene 3 — Connect nodes (0:50–1:30)
 
 **Clicks/typing:**
-1. In the terminal: `python agent.py --simulate-count 3`
-2. Switch to the **Agents** page.
+1. In the terminal: `python node.py --simulate-count 3`
+2. Switch to the **Nodes** page.
 
 **Say:**
-> "I'll connect three agents. They register, start heartbeating, and show up as online with
+> "I'll connect three nodes. They register, start heartbeating, and show up as online with
 > health scores — all live, no page refresh. If one drops, it degrades to warning, then
 > offline, and reconnects automatically with backoff."
 
@@ -46,13 +46,13 @@ open before you hit record. Keep one terminal visible for launching agents.
 **Clicks:**
 1. Go to **Missions**.
 2. Point at the preset library (*Lab Health Check*, *Basic Recon*, *Directory Audit*,
-   *Multi-Agent Status*).
-3. In the builder: name it, keep steps `health_check` → `system_info`, select all 3 agents.
+   *Multi-Node Status*).
+3. In the builder: name it, keep steps `health_check` → `system_info`, select all 3 nodes.
 4. Click **Create & run**.
 
 **Say:**
-> "Missions are reusable templates of safe plugins. I'll target all three agents and run.
-> The server fans out one task per agent per step. Watch the Task activity panel: pending →
+> "Missions are reusable templates of safe plugins. I'll target all three nodes and run.
+> The server fans out one task per node per step. Watch the Task activity panel: pending →
 > sent → success."
 
 ---
@@ -62,7 +62,7 @@ open before you hit record. Keep one terminal visible for launching agents.
 **Clicks:** Expand a result in the Results console.
 
 **Say:**
-> "Each agent returned structured output — OS, hostname, uptime, exit code, duration in
+> "Each node returned structured output — OS, hostname, uptime, exit code, duration in
 > milliseconds — persisted on the server. This is normal C2 functionality. Now the
 > interesting part."
 
@@ -73,7 +73,7 @@ open before you hit record. Keep one terminal visible for launching agents.
 **Clicks:** Go to **Ledger**; scroll the chained events; point at block numbers.
 
 **Say:**
-> "Every step emitted an event: agent registered, mission started, task sent, result
+> "Every step emitted an event: node registered, mission started, task sent, result
 > received. Each one is SHA-256 hashed over a canonical JSON form, chained with the previous
 > hash, and anchored on-chain — here are the transaction block numbers."
 
@@ -96,7 +96,7 @@ open before you hit record. Keep one terminal visible for launching agents.
 
 **Say:**
 > "Here's the whole operation replayed: connect, mission, task, result, ledger, verified.
-> Aligo Mission Ledger C2 — mission-based, multi-agent, and provably honest. Thanks for
+> Aligo Mission Ledger C2 — mission-based, multi-node, and provably honest. Thanks for
 > watching."
 
 ---

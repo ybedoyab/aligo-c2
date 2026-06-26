@@ -22,7 +22,7 @@ class LedgerEvent(SQLModel, table=True):
     sequence: int | None = Field(default=None, index=True)
     mission_id: str = Field(default="", index=True)
     task_id: str = Field(default="", index=True)
-    agent_id: str = Field(default="", index=True)
+    node_id: str = Field(default="", index=True)
     event_type: EventType
     # The exact payload that was hashed (canonical JSON of this dict reproduces the hash).
     payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))

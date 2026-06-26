@@ -12,7 +12,7 @@ PREDEFINED_MISSIONS: list[dict] = [
     {
         "id": "mission-lab-health-check",
         "name": "Lab Health Check",
-        "description": "Verify each agent is healthy and report basic system info.",
+        "description": "Verify each node is healthy and report basic system info.",
         "steps": [
             {"plugin": "health_check", "args": {}},
             {"plugin": "system_info", "args": {}},
@@ -30,15 +30,15 @@ PREDEFINED_MISSIONS: list[dict] = [
     {
         "id": "mission-directory-audit",
         "name": "Directory Audit",
-        "description": "List the contents of each agent's sandboxed lab workspace.",
+        "description": "List the contents of each node's sandboxed lab workspace.",
         "steps": [
             {"plugin": "list_lab_directory", "args": {"path": "."}},
         ],
     },
     {
-        "id": "mission-multi-agent-ping",
-        "name": "Multi-Agent Ping",
-        "description": "Echo a ping and confirm health across every selected agent.",
+        "id": "mission-multi-node-ping",
+        "name": "Multi-Node Ping",
+        "description": "Echo a ping and confirm health across every selected node.",
         "steps": [
             {"plugin": "echo", "args": {"text": "ping"}},
             {"plugin": "health_check", "args": {}},
@@ -60,7 +60,7 @@ def seed_predefined_missions() -> None:
                 description=spec["description"],
                 status=MissionStatus.DRAFT,
                 steps=spec["steps"],
-                target_agent_ids=[],
+                target_node_ids=[],
                 is_predefined=True,
             )
             session.add(mission)

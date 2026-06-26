@@ -1,4 +1,4 @@
-"""health_check plugin: report agent uptime, timestamp, latency and status."""
+"""health_check plugin: report node uptime, timestamp, latency and status."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-# Captured when the module is first imported (i.e. agent process start).
+# Captured when the module is first imported (i.e. node process start).
 _START_MONOTONIC = time.monotonic()
 
 

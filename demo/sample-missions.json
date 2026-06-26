@@ -1,15 +1,15 @@
 {
-  "description": "Sample missions and simulated agents for Aligo Mission Ledger C2 demos. The four missions below mirror the presets seeded by the server (server/app/db/seed.py). You can POST any of these to /api/missions to recreate them as custom missions.",
-  "simulated_agents": ["agent-001", "agent-002", "agent-003"],
+  "description": "Sample missions and simulated nodes for Aligo Mission Ledger C2 demos. The four missions below mirror the presets seeded by the server (server/app/db/seed.py). You can POST any of these to /api/missions to recreate them as custom missions.",
+  "simulated_nodes": ["node-001", "node-002", "node-003"],
   "missions": [
     {
       "name": "Lab Health Check",
-      "description": "Verify each agent is healthy and report basic system info.",
+      "description": "Verify each node is healthy and report basic system info.",
       "steps": [
         { "plugin": "health_check", "args": {} },
         { "plugin": "system_info", "args": {} }
       ],
-      "target_agent_ids": ["agent-001", "agent-002", "agent-003"]
+      "target_node_ids": ["node-001", "node-002", "node-003"]
     },
     {
       "name": "Basic Recon",
@@ -18,23 +18,23 @@
         { "plugin": "system_info", "args": {} },
         { "plugin": "network_info", "args": {} }
       ],
-      "target_agent_ids": ["agent-001"]
+      "target_node_ids": ["node-001"]
     },
     {
       "name": "Directory Audit",
-      "description": "List the contents of each agent's sandboxed lab workspace.",
+      "description": "List the contents of each node's sandboxed lab workspace.",
       "steps": [{ "plugin": "list_lab_directory", "args": { "path": "." } }],
-      "target_agent_ids": ["agent-001", "agent-002"]
+      "target_node_ids": ["node-001", "node-002"]
     },
     {
-      "name": "Multi-Agent Status",
-      "description": "Echo a ping and confirm health across every selected agent.",
+      "name": "Multi-Node Status",
+      "description": "Echo a ping and confirm health across every selected node.",
       "steps": [
         { "plugin": "echo", "args": { "text": "ping" } },
         { "plugin": "health_check", "args": {} },
         { "plugin": "allowed_command", "args": { "command": "whoami" } }
       ],
-      "target_agent_ids": ["agent-001", "agent-002", "agent-003"]
+      "target_node_ids": ["node-001", "node-002", "node-003"]
     }
   ]
 }

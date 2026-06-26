@@ -18,7 +18,7 @@ def save_result(session: Session, payload: ResultIn) -> Result:
         id=f"res-{uuid.uuid4().hex[:12]}",
         task_id=payload.task_id,
         mission_id=payload.mission_id,
-        agent_id=payload.agent_id,
+        node_id=payload.node_id,
         status=payload.status,
         stdout=payload.stdout,
         stderr=payload.stderr,

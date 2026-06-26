@@ -3,6 +3,7 @@ import { api } from "../api/client";
 import { MissionBuilder } from "../components/MissionBuilder";
 import { ResultViewer } from "../components/ResultViewer";
 import { TaskConsole } from "../components/TaskConsole";
+import { TaskEvidenceModal } from "../components/TaskEvidenceModal";
 import { StatusBadge } from "../components/HealthBadge";
 import { useC2 } from "../store";
 import type { Mission } from "../types";
@@ -23,10 +24,10 @@ function MissionRow({
     setBusy(true);
     setError("");
     try {
-      const targets = mission.target_agent_ids.length
-        ? mission.target_agent_ids
+      const targets = mission.target_node_ids.length
+        ? mission.target_node_ids
         : onlineIds;
-      if (targets.length === 0) throw new Error("no agents online");
+      if (targets.length === 0) throw new Error("no nodes online");
       await api.startMission(mission.id, targets);
       onChanged();
     } catch (e) {
@@ -62,15 +63,16 @@ function MissionRow({
 }
 
 export function Missions() {
-  const { missions, agents, tasks, results, refreshAll } = useC2();
-  const onlineIds = agents.filter((a) => a.status === "online").map((a) => a.id);
+  const { missions, nodes, tasks, results, refreshAll } = useC2();
+  const onlineIds = nodes.filter((a) => a.status === "online").map((a) => a.id);
+  const [evidenceTaskId, setEvidenceTaskId] = useState<string | null>(null);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-white">Missions</h1>
         <p className="text-sm text-soc-muted">
-          Reusable, multi-step missions executed across one or more agents.
+          Reusable, multi-step missions executed across one or more nodes.
         </p>
       </div>
 
@@ -86,13 +88,22 @@ export function Missions() {
             />
           ))}
         </div>
-        <MissionBuilder agents={agents} onChanged={refreshAll} />
+        <MissionBuilder nodes={nodes} onChanged={refreshAll} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <TaskConsole tasks={tasks.slice(0, 30)} />
-        <ResultViewer results={results.slice(0, 15)} />
+        <TaskConsole tasks={tasks.slice(0, 30)} onOpenEvidence={setEvidenceTaskId} />
+        <ResultViewer
+          results={results.slice(0, 15)}
+          tasks={tasks}
+          onOpenEvidence={setEvidenceTaskId}
+        />
       </div>
+
+      <TaskEvidenceModal
+        taskId={evidenceTaskId}
+        onClose={() => setEvidenceTaskId(null)}
+      />
     </div>
   );
 }

@@ -14,19 +14,19 @@ How Aligo Mission Ledger C2 maps to typical hackathon judging criteria.
 
 ## Functionality
 
-- End-to-end working MVP: server ⇄ agents over WebSockets, mission orchestration,
+- End-to-end working MVP: server ⇄ nodes over WebSockets, mission orchestration,
   real-time results, and ledger anchoring/verification.
-- Advanced features implemented: multi-agent, heartbeat with warning/offline degradation,
+- Advanced features implemented: multi-node, heartbeat with warning/offline degradation,
   exponential-backoff reconnection, mission system with 4 presets, 6 safe plugins, live
-  operator updates, timeline replay, simulated agent fleet (`--simulate-count`).
+  operator updates, timeline replay, simulated node fleet (`--simulate-count`).
 - Full REST API + two WebSocket channels exactly as specified.
 
 ## Robustness
 
 - Graceful degradation: runs even if the blockchain is down (`pending_chain`).
 - Defensive WebSocket handling (size caps, JSON validation, structured errors).
-- Per-task timeouts; offline-agent tasks fail fast instead of hanging missions.
-- Heartbeat monitor keeps agent state honest.
+- Per-task timeouts; offline-node tasks fail fast instead of hanging missions.
+- Heartbeat monitor keeps node state honest.
 - Automated tests for the riskiest logic (hashing, ledger, traversal, allowlist, contract).
 
 ## Code quality
@@ -53,5 +53,5 @@ How Aligo Mission Ledger C2 maps to typical hackathon judging criteria.
 ## Suggested emphasis during judging
 
 1. Lead with the ledger verify (verified → tampered) — it's the memorable moment.
-2. Show multi-agent fan-out and live updates (no refresh).
+2. Show multi-node fan-out and live updates (no refresh).
 3. Stress the safety model: this is auditable and contained by design.

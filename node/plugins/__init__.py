@@ -1,4 +1,4 @@
-"""Safe plugin registry for the agent.
+"""Safe plugin registry for the node.
 
 Each plugin exposes `run(args: dict) -> dict`. The returned dict is serialized as the
 result `stdout`. Only plugins registered here can ever be executed; there is no path to

@@ -10,7 +10,7 @@ import {
 } from "react";
 import { OPERATOR_WS_URL, api, type HealthInfo } from "./api/client";
 import type {
-  Agent,
+  Node,
   LedgerEvent,
   Mission,
   Result,
@@ -19,7 +19,7 @@ import type {
 } from "./types";
 
 interface C2State {
-  agents: Agent[];
+  nodes: Node[];
   missions: Mission[];
   tasks: Task[];
   results: Result[];
@@ -40,7 +40,7 @@ function upsert<T extends { id: string }>(list: T[], item: T): T[] {
 }
 
 export function C2Provider({ children }: { children: ReactNode }) {
-  const [agents, setAgents] = useState<Agent[]>([]);
+  const [nodes, setNodes] = useState<Node[]>([]);
   const [missions, setMissions] = useState<Mission[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [results, setResults] = useState<Result[]>([]);
@@ -51,14 +51,14 @@ export function C2Provider({ children }: { children: ReactNode }) {
 
   const refreshAll = useCallback(async () => {
     const [a, m, t, r, l, h] = await Promise.allSettled([
-      api.listAgents(),
+      api.listNodes(),
       api.listMissions(),
       api.listTasks(),
       api.listResults(),
       api.listLedger(),
       api.health(),
     ]);
-    if (a.status === "fulfilled") setAgents(a.value);
+    if (a.status === "fulfilled") setNodes(a.value);
     if (m.status === "fulfilled") setMissions(m.value);
     if (t.status === "fulfilled") setTasks(t.value);
     if (r.status === "fulfilled") setResults(r.value);
@@ -94,8 +94,8 @@ export function C2Provider({ children }: { children: ReactNode }) {
           return;
         }
         switch (msg.type) {
-          case "agent_update":
-            setAgents((prev) => upsert(prev, msg.data as Agent));
+          case "node_update":
+            setNodes((prev) => upsert(prev, msg.data as Node));
             break;
           case "mission_update":
             setMissions((prev) => upsert(prev, msg.data as Mission));
@@ -125,7 +125,7 @@ export function C2Provider({ children }: { children: ReactNode }) {
 
   const value = useMemo<C2State>(
     () => ({
-      agents,
+      nodes,
       missions,
       tasks,
       results,
@@ -134,7 +134,7 @@ export function C2Provider({ children }: { children: ReactNode }) {
       wsConnected,
       refreshAll,
     }),
-    [agents, missions, tasks, results, ledger, health, wsConnected, refreshAll]
+    [nodes, missions, tasks, results, ledger, health, wsConnected, refreshAll]
   );
 
   return <C2Context.Provider value={value}>{children}</C2Context.Provider>;

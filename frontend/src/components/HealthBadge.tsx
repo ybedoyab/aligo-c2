@@ -1,4 +1,4 @@
-import type { AgentStatus, MissionStatus, TaskStatus } from "../types";
+import type { NodeStatus, MissionStatus, TaskStatus } from "../types";
 
 const STATUS_STYLES: Record<string, string> = {
   online: "bg-soc-ok/15 text-soc-ok border-soc-ok/40",
@@ -15,12 +15,23 @@ const STATUS_STYLES: Record<string, string> = {
   timeout: "bg-soc-warn/15 text-soc-warn border-soc-warn/40",
   pending: "bg-soc-muted/10 text-soc-muted border-soc-border",
   sent: "bg-soc-accent2/15 text-soc-accent2 border-soc-accent2/40",
+  // integrity / chain
+  verified: "bg-soc-ok/15 text-soc-ok border-soc-ok/40",
+  pending_chain: "bg-soc-warn/15 text-soc-warn border-soc-warn/40",
+  anchored: "bg-soc-ok/15 text-soc-ok border-soc-ok/40",
+  confirmed: "bg-soc-ok/15 text-soc-ok border-soc-ok/40",
+  tampered: "bg-soc-err/15 text-soc-err border-soc-err/40",
+  local_only: "bg-soc-muted/15 text-soc-muted border-soc-border",
+  unknown: "bg-soc-muted/10 text-soc-muted border-soc-border",
+  connected: "bg-soc-ok/15 text-soc-ok border-soc-ok/40",
+  contract_not_configured: "bg-soc-warn/15 text-soc-warn border-soc-warn/40",
+  disconnected: "bg-soc-err/15 text-soc-err border-soc-err/40",
 };
 
 export function StatusBadge({
   status,
 }: {
-  status: AgentStatus | MissionStatus | TaskStatus | string;
+  status: NodeStatus | MissionStatus | TaskStatus | string;
 }) {
   const style = STATUS_STYLES[status] ?? "bg-soc-muted/10 text-soc-muted border-soc-border";
   return (
@@ -49,4 +60,8 @@ export function HealthBadge({ score }: { score: number }) {
       <span className={`text-xs font-mono ${color}`}>{score}</span>
     </div>
   );
+}
+
+export function IntegrityBadge({ status }: { status: string }) {
+  return <StatusBadge status={status} />;
 }

@@ -18,7 +18,7 @@ describe("ExecutionLedger", () => {
       "evt-1",
       "mission-1",
       "task-1",
-      "agent-001",
+      "node-001",
       "TASK_RESULT",
       payloadHash,
       previousHash,
@@ -31,7 +31,7 @@ describe("ExecutionLedger", () => {
     const event = await ledger.getFunction("getEvent")("evt-1");
     expect(event.missionId).to.equal("mission-1");
     expect(event.taskId).to.equal("task-1");
-    expect(event.agentId).to.equal("agent-001");
+    expect(event.nodeId).to.equal("node-001");
     expect(event.eventType).to.equal("TASK_RESULT");
     expect(event.payloadHash).to.equal(payloadHash);
     expect(event.timestamp).to.equal(1000n);
@@ -44,7 +44,7 @@ describe("ExecutionLedger", () => {
         "evt-2",
         "mission-1",
         "task-2",
-        "agent-002",
+        "node-002",
         "TASK_SENT",
         payloadHash,
         previousHash,
@@ -57,7 +57,7 @@ describe("ExecutionLedger", () => {
         "evt-2",
         "mission-1",
         "task-2",
-        "agent-002",
+        "node-002",
         "TASK_SENT",
         payloadHash,
         previousHash,

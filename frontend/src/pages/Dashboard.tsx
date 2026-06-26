@@ -21,9 +21,9 @@ function Metric({
 }
 
 export function Dashboard() {
-  const { agents, missions, tasks, ledger } = useC2();
+  const { nodes, missions, tasks, ledger } = useC2();
 
-  const online = agents.filter((a) => a.status === "online").length;
+  const online = nodes.filter((a) => a.status === "online").length;
   const activeMissions = missions.filter((m) => m.status === "running").length;
   const completedTasks = tasks.filter((t) => t.status === "success").length;
   const failedTasks = tasks.filter(
@@ -35,19 +35,19 @@ export function Dashboard() {
       <div>
         <h1 className="text-xl font-semibold text-white">Operations Dashboard</h1>
         <p className="text-sm text-soc-muted">
-          Real-time view of agents, missions and the verifiable execution ledger.
+          Real-time view of nodes, missions and the verifiable execution ledger.
         </p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <Metric label="Agents online" value={online} accent="text-soc-ok" />
+        <Metric label="Nodes online" value={online} accent="text-soc-ok" />
         <Metric label="Active missions" value={activeMissions} accent="text-soc-accent" />
         <Metric label="Tasks completed" value={completedTasks} accent="text-soc-ok" />
         <Metric label="Tasks failed" value={failedTasks} accent="text-soc-err" />
         <Metric label="Ledger events" value={ledger.length} accent="text-soc-accent2" />
       </div>
 
-      <TimelineReplay events={ledger} />
+      <TimelineReplay events={ledger} missions={missions} tasks={tasks} />
     </div>
   );
 }

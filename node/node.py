@@ -1,12 +1,12 @@
-"""Aligo Mission Ledger C2 - laboratory agent.
+"""Aligo Mission Ledger C2 - laboratory node.
 
 Connects to the C2 over WebSocket, registers, heartbeats, and executes ONLY the safe
 plugins in the local allowlist. Reconnects automatically with exponential backoff while
-preserving its agent_id.
+preserving its node_id.
 
 Usage:
-    python agent.py --agent-id agent-001
-    python agent.py --simulate-count 3
+    python node.py --node-id node-001
+    python node.py --simulate-count 3
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from typing import Any
 
 import websockets
 
-from config import AgentConfig
+from config import NodeConfig
 from plugins import available_plugins, get_plugin
 from protocol import (
     error_message,
@@ -39,17 +39,17 @@ logging.basicConfig(
 )
 
 
-class Agent:
-    def __init__(self, agent_id: str, cfg: AgentConfig) -> None:
-        self.agent_id = agent_id
+class Node:
+    def __init__(self, node_id: str, cfg: NodeConfig) -> None:
+        self.node_id = node_id
         self.cfg = cfg
-        self.log = logging.getLogger(agent_id)
+        self.log = logging.getLogger(node_id)
         self.hostname = socket.gethostname()
         self.os_name = platform.system()
         self.username = getpass.getuser()
 
     async def run_forever(self) -> None:
-        """Connect/reconnect loop with exponential backoff (agent_id preserved)."""
+        """Connect/reconnect loop with exponential backoff (node_id preserved)."""
         delay = self.cfg.reconnect_base_delay
         while True:
             try:
@@ -71,7 +71,7 @@ class Agent:
             await ws.send(
                 json.dumps(
                     register_message(
-                        self.agent_id,
+                        self.node_id,
                         self.hostname,
                         self.os_name,
                         self.username,
@@ -95,7 +95,7 @@ class Agent:
     async def _heartbeat_loop(self, ws: Any) -> None:
         try:
             while True:
-                await ws.send(json.dumps(heartbeat_message(self.agent_id)))
+                await ws.send(json.dumps(heartbeat_message(self.node_id)))
                 await asyncio.sleep(self.cfg.heartbeat_interval)
         except (asyncio.CancelledError, websockets.WebSocketException):
             return
@@ -104,7 +104,7 @@ class Agent:
         try:
             msg = json.loads(raw)
         except json.JSONDecodeError:
-            await ws.send(json.dumps(error_message(self.agent_id, "invalid JSON")))
+            await ws.send(json.dumps(error_message(self.node_id, "invalid JSON")))
             return
 
         if msg.get("type") == "task":
@@ -116,7 +116,7 @@ class Agent:
         plugin_name = msg.get("plugin", "")
         args = msg.get("args", {}) or {}
 
-        await ws.send(json.dumps(task_ack_message(task_id, self.agent_id)))
+        await ws.send(json.dumps(task_ack_message(task_id, self.node_id)))
 
         plugin = get_plugin(plugin_name)
         start = time.perf_counter()
@@ -183,33 +183,33 @@ class Agent:
     async def _send_result(self, ws: Any, **kwargs: Any) -> None:
         await ws.send(
             json.dumps(
-                result_message(agent_id=self.agent_id, **kwargs)
+                result_message(node_id=self.node_id, **kwargs)
             )
         )
 
 
-async def _run_fleet(count: int, cfg: AgentConfig) -> None:
-    agents = [Agent(f"agent-{i:03d}", cfg) for i in range(1, count + 1)]
-    await asyncio.gather(*(a.run_forever() for a in agents))
+async def _run_fleet(count: int, cfg: NodeConfig) -> None:
+    nodes = [Node(f"node-{i:03d}", cfg) for i in range(1, count + 1)]
+    await asyncio.gather(*(a.run_forever() for a in nodes))
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Aligo Mission Ledger C2 lab agent")
-    parser.add_argument("--agent-id", default="agent-001", help="stable agent identifier")
+    parser = argparse.ArgumentParser(description="Aligo Mission Ledger C2 lab node")
+    parser.add_argument("--node-id", default="node-001", help="stable node identifier")
     parser.add_argument(
         "--simulate-count",
         type=int,
         default=0,
-        help="launch N simulated agents (agent-001..agent-00N) in one process",
+        help="launch N simulated nodes (node-001..node-00N) in one process",
     )
     parser.add_argument("--ws-url", default=None, help="override C2 WebSocket URL")
-    parser.add_argument("--token", default=None, help="override shared agent token")
+    parser.add_argument("--token", default=None, help="override shared node token")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    cfg = AgentConfig.from_env()
+    cfg = NodeConfig.from_env()
     if args.ws_url:
         cfg.ws_url = args.ws_url
     if args.token:
@@ -218,13 +218,13 @@ def main() -> None:
     try:
         if args.simulate_count and args.simulate_count > 0:
             logging.getLogger("fleet").info(
-                "Launching %d simulated agents", args.simulate_count
+                "Launching %d simulated nodes", args.simulate_count
             )
             asyncio.run(_run_fleet(args.simulate_count, cfg))
         else:
-            asyncio.run(Agent(args.agent_id, cfg).run_forever())
+            asyncio.run(Node(args.node_id, cfg).run_forever())
     except KeyboardInterrupt:
-        logging.getLogger("agent").info("Shutting down.")
+        logging.getLogger("node").info("Shutting down.")
 
 
 if __name__ == "__main__":

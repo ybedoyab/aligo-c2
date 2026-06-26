@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import StrEnum
 
 
-class AgentStatus(StrEnum):
+class NodeStatus(StrEnum):
     ONLINE = "online"
     OFFLINE = "offline"
     WARNING = "warning"
@@ -30,24 +30,41 @@ class TaskStatus(StrEnum):
 
 
 class EventType(StrEnum):
-    AGENT_REGISTERED = "AGENT_REGISTERED"
+    NODE_REGISTERED = "NODE_REGISTERED"
     MISSION_CREATED = "MISSION_CREATED"
     MISSION_STARTED = "MISSION_STARTED"
     TASK_SENT = "TASK_SENT"
     TASK_RESULT = "TASK_RESULT"
     TASK_FAILED = "TASK_FAILED"
     MISSION_COMPLETED = "MISSION_COMPLETED"
-    AGENT_DISCONNECTED = "AGENT_DISCONNECTED"
-    AGENT_RECONNECTED = "AGENT_RECONNECTED"
+    NODE_DISCONNECTED = "NODE_DISCONNECTED"
+    NODE_RECONNECTED = "NODE_RECONNECTED"
 
 
 class OnChainStatus(StrEnum):
-    DISABLED = "disabled"          # ledger turned off
-    PENDING_CHAIN = "pending_chain"  # stored locally, not yet/never anchored
-    CONFIRMED = "confirmed"        # anchored on-chain
+    DISABLED = "disabled"
+    PENDING_CHAIN = "pending_chain"
+    CONFIRMED = "confirmed"   # legacy alias; treat same as anchored
+    ANCHORED = "anchored"     # successfully written on-chain
 
 
-# Allowlisted plugins the operator may target. Mirrors the agent plugin registry.
+class ChainStatus(StrEnum):
+    """High-level blockchain connectivity for the operator UI."""
+    CONNECTED = "connected"
+    CONTRACT_NOT_CONFIGURED = "contract_not_configured"
+    DISCONNECTED = "disconnected"
+    LOCAL_ONLY = "local_only"
+
+
+class IntegrityStatus(StrEnum):
+    VERIFIED = "verified"
+    PENDING_CHAIN = "pending_chain"
+    TAMPERED = "tampered"
+    LOCAL_ONLY = "local_only"
+    UNKNOWN = "unknown"
+
+
+# Allowlisted plugins the operator may target. Mirrors the node plugin registry.
 ALLOWED_PLUGINS: frozenset[str] = frozenset(
     {
         "system_info",

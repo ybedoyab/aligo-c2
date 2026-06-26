@@ -1,31 +1,40 @@
 # Demo Script (5–7 minutes)
 
-A timed walkthrough for the jury. Have everything running beforehand (blockchain + contract
-deployed, server, frontend, and the **Demo** page open). Keep a terminal visible for agents.
+Have blockchain, server, frontend, and nodes ready. Open the **Demo** page for one-click
+controls and the **Jury mode** checklist.
 
 | Time | Segment | What to do | What to say |
 |------|---------|------------|-------------|
-| 0:00 | Intro | Show the dashboard title. | "This is **Aligo Mission Ledger C2** — a lab C2 with a blockchain-backed Proof-of-Execution Ledger. Everything here is built for an authorized lab; there's no real offensive capability." |
-| 0:30 | Architecture | Open `docs/architecture.md` diagram or the slide. | "Four parts: a React operator dashboard, a FastAPI server, modular Python agents over WebSockets, and a private blockchain that anchors a tamper-evident ledger." |
-| 1:00 | Dashboard | Point at the metric cards and live indicator (sidebar "Live"). | "The dashboard updates in real time over a WebSocket — no refreshing. Right now zero agents." |
-| 1:30 | Connect agents | In the terminal run `python agent.py --simulate-count 3`. Switch to **Agents**. | "I'll connect three agents. Watch them appear as **online** with health scores and live heartbeats." |
-| 2:00 | Create a mission | Go to **Missions**. Show the preset library; open the builder. | "Missions are reusable templates of safe plugins. I can pick a preset like *Lab Health Check*, or build one: health_check then system_info, targeting all three agents." |
-| 3:00 | Run tasks | Click **Run** on *Lab Health Check* (or **Create & run**). | "Starting the mission fans out one task per agent per step. Watch tasks move pending → sent → success in the Task activity panel." |
-| 4:00 | See results | Expand a result in the Results console. | "Each agent returned structured output — OS, hostname, uptime, exit code, duration. All persisted server-side." |
-| 5:00 | Show ledger | Go to **Ledger**. Scroll the chained events. | "Every step generated an event: agent registered, mission started, task sent, result received. Each is SHA-256 hashed over canonical JSON, chained by previous_hash, and anchored on-chain — see the block numbers." |
-| 6:00 | Verify integrity | Click **Verify** on a TASK_RESULT event → **verified**. (Optional) describe tampering. | "Verify recomputes the local hash and compares it with the on-chain value: **verified**. If anyone edited a stored result, the hashes diverge and it shows **tampered** — that's the whole point: trustworthy, auditable execution." |
-| 6:30 | Close | Go to **Demo** → click **Show replay**. | "Here's the full timeline replayed: connect → mission → task → result → ledger → verified. Thanks — Aligo Mission Ledger C2: missions, modular agents, and verifiable proof of execution." |
+| 0:00 | Intro | Dashboard title + sidebar chain status. | "Aligo Mission Ledger C2 — a lab C2 with verifiable execution evidence on a private blockchain. Safe plugins only; no real offensive tooling." |
+| 0:30 | Architecture | Brief diagram or Console page. | "Operator UI, FastAPI server, modular nodes, and an ExecutionLedger contract. The Console maps commands to allowlisted plugins — not a remote shell." |
+| 1:00 | Connect nodes | `python node.py --simulate-count 3` → **Nodes**. | "Three nodes online with live heartbeats. Click any card for full detail and per-node task history." |
+| 1:30 | Run mission | **Demo → Start sample mission** (or Missions → Lab Health Check). | "A mission fans out health_check + system_info to every node. Task rows show the **plugin name**, not just an ID." |
+| 2:30 | Evidence | Click a result → **Task Execution Evidence** modal. | "Here's exactly what ran: plugin, JSON args, stdout, duration, and the SHA-256 hash chained to previous events." |
+| 3:30 | Console | **Console** → `run health_check on all`. | "The operator console only accepts safe plugin commands — try an unknown command and it rejects it." |
+| 4:30 | Ledger | **Ledger** → **Anchor pending events** (if needed) → **Verify**. | "Events anchor on-chain. Verify compares local hash vs blockchain — **verified** means integrity holds." |
+| 5:30 | Jury story | **Demo → Jury mode** checklist (all green). | "Five steps: nodes connected, mission run, tasks executed, results received, evidence on the ledger." |
+| 6:30 | Close | **Show replay** + timeline with mission names and plugins. | "Full auditable chain from connect to verified evidence. Thank you." |
 
-## Backup one-click path (if time is short)
+## 5-minute fast path
 
-Open **Demo** and use the big buttons in order: **Start sample mission → Run health check
-→ Verify ledger → Show replay**. Connect agents first via the terminal command shown on the
-page.
+1. Connect nodes (terminal command on Demo page).
+2. **Demo → Start sample mission**
+3. **Demo → Open latest task evidence**
+4. **Demo → Anchor pending ledger events**
+5. **Demo → Verify latest ledger event**
+6. **Demo → Show replay**
 
 ## Pre-flight checklist
 
-- [ ] `npx hardhat node` running; contract deployed; `CONTRACT_ADDRESS` set in `.env`.
-- [ ] Server running (`/health` shows `ledger_available: true`).
-- [ ] Frontend open; sidebar shows **Live**.
-- [ ] Terminal ready with the agent command.
-- [ ] One previous run done so the ledger isn't empty (optional, for safety).
+- [ ] `npx hardhat node` running; `npx hardhat run scripts/deploy.ts --network localhost`
+- [ ] `CONTRACT_ADDRESS` in `.env` **or** `deployment.json` at repo root
+- [ ] Server restarted after setting contract (`/health` → `chain_status: connected`)
+- [ ] Frontend sidebar shows **Live** and contract address snippet
+- [ ] Nodes connected (`python node.py --simulate-count 3`)
+
+## What to highlight for judges
+
+- **Plugin visibility** — every row shows `health_check`, `system_info`, etc.
+- **Evidence modal** — one-click proof of what executed
+- **Anchor + Verify** — blockchain is not decorative; it's checked live
+- **Safety** — Console rejects arbitrary shell; see [operator-console.md](operator-console.md)

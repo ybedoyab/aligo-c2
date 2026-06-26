@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api/client";
-import { ALLOWED_PLUGINS, type Agent, type PluginName } from "../types";
+import { ALLOWED_PLUGINS, type Node, type PluginName } from "../types";
 import { timeAgo } from "../utils";
 import { HealthBadge, StatusBadge } from "./HealthBadge";
 
@@ -11,7 +12,7 @@ function defaultArgs(plugin: PluginName): Record<string, unknown> {
   return {};
 }
 
-function QuickTask({ agent }: { agent: Agent }) {
+function QuickTask({ node }: { node: Node }) {
   const [plugin, setPlugin] = useState<PluginName>("health_check");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string>("");
@@ -21,7 +22,7 @@ function QuickTask({ agent }: { agent: Agent }) {
     setMsg("");
     try {
       await api.createTask({
-        agent_id: agent.id,
+        node_id: node.id,
         plugin,
         args: defaultArgs(plugin),
       });
@@ -50,7 +51,7 @@ function QuickTask({ agent }: { agent: Agent }) {
       <button
         className="btn-primary py-1 text-xs"
         onClick={run}
-        disabled={busy || agent.status === "offline"}
+        disabled={busy || node.status === "offline"}
       >
         {busy ? "…" : "Run"}
       </button>
@@ -59,13 +60,13 @@ function QuickTask({ agent }: { agent: Agent }) {
   );
 }
 
-export function AgentTable({ agents }: { agents: Agent[] }) {
+export function NodeTable({ nodes }: { nodes: Node[] }) {
   return (
     <div className="card overflow-hidden">
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-xs uppercase tracking-wide text-soc-muted border-b border-soc-border">
-            <th className="px-4 py-3">Agent</th>
+            <th className="px-4 py-3">Node</th>
             <th className="px-4 py-3">Status</th>
             <th className="px-4 py-3">Health</th>
             <th className="px-4 py-3">OS</th>
@@ -74,33 +75,39 @@ export function AgentTable({ agents }: { agents: Agent[] }) {
           </tr>
         </thead>
         <tbody>
-          {agents.length === 0 && (
+          {nodes.length === 0 && (
             <tr>
               <td colSpan={6} className="px-4 py-8 text-center text-soc-muted">
-                No agents yet. Start one with{" "}
-                <code className="text-soc-accent">python agent.py --agent-id agent-001</code>
+                No nodes yet. Start one with{" "}
+                <code className="text-soc-accent">python node.py --node-id node-001</code>
               </td>
             </tr>
           )}
-          {agents.map((agent) => (
+          {nodes.map((node) => (
             <tr
-              key={agent.id}
+              key={node.id}
               className="border-b border-soc-border/50 last:border-0 hover:bg-soc-panel2/50"
             >
               <td className="px-4 py-3">
-                <div className="font-mono text-white">{agent.id}</div>
-                <div className="text-xs text-soc-muted">{agent.hostname}</div>
+                <Link
+                  to={`/nodes/${node.id}`}
+                  className="font-mono text-white hover:text-soc-accent"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {node.id}
+                </Link>
+                <div className="text-xs text-soc-muted">{node.hostname}</div>
               </td>
               <td className="px-4 py-3">
-                <StatusBadge status={agent.status} />
+                <StatusBadge status={node.status} />
               </td>
               <td className="px-4 py-3">
-                <HealthBadge score={agent.health_score} />
+                <HealthBadge score={node.health_score} />
               </td>
-              <td className="px-4 py-3 text-soc-muted">{agent.os || "-"}</td>
-              <td className="px-4 py-3 text-soc-muted">{timeAgo(agent.last_seen)}</td>
+              <td className="px-4 py-3 text-soc-muted">{node.os || "-"}</td>
+              <td className="px-4 py-3 text-soc-muted">{timeAgo(node.last_seen)}</td>
               <td className="px-4 py-3">
-                <QuickTask agent={agent} />
+                <QuickTask node={node} />
               </td>
             </tr>
           ))}

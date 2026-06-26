@@ -1,4 +1,4 @@
-"""Protocol message builders shared by the agent.
+"""Protocol message builders shared by the node.
 
 Mirrors docs/protocol.md. Message types:
 register, register_ack, heartbeat, task, task_ack, result, error,
@@ -18,12 +18,12 @@ def now_iso() -> str:
 
 
 def register_message(
-    agent_id: str, hostname: str, os_name: str, username: str, token: str
+    node_id: str, hostname: str, os_name: str, username: str, token: str
 ) -> dict[str, Any]:
     return {
         "type": "register",
         "protocol": PROTOCOL_VERSION,
-        "agent_id": agent_id,
+        "node_id": node_id,
         "hostname": hostname,
         "os": os_name,
         "username": username,
@@ -32,15 +32,15 @@ def register_message(
     }
 
 
-def heartbeat_message(agent_id: str) -> dict[str, Any]:
-    return {"type": "heartbeat", "agent_id": agent_id, "timestamp": now_iso()}
+def heartbeat_message(node_id: str) -> dict[str, Any]:
+    return {"type": "heartbeat", "node_id": node_id, "timestamp": now_iso()}
 
 
-def task_ack_message(task_id: str, agent_id: str) -> dict[str, Any]:
+def task_ack_message(task_id: str, node_id: str) -> dict[str, Any]:
     return {
         "type": "task_ack",
         "task_id": task_id,
-        "agent_id": agent_id,
+        "node_id": node_id,
         "timestamp": now_iso(),
     }
 
@@ -49,7 +49,7 @@ def result_message(
     *,
     task_id: str,
     mission_id: str,
-    agent_id: str,
+    node_id: str,
     status: str,
     stdout: str,
     stderr: str,
@@ -61,7 +61,7 @@ def result_message(
         "type": "result",
         "task_id": task_id,
         "mission_id": mission_id,
-        "agent_id": agent_id,
+        "node_id": node_id,
         "status": status,
         "stdout": stdout,
         "stderr": stderr,
@@ -72,10 +72,10 @@ def result_message(
     }
 
 
-def error_message(agent_id: str, error: str) -> dict[str, Any]:
+def error_message(node_id: str, error: str) -> dict[str, Any]:
     return {
         "type": "error",
-        "agent_id": agent_id,
+        "node_id": node_id,
         "error": error,
         "timestamp": now_iso(),
     }

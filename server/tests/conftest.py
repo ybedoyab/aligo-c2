@@ -10,7 +10,7 @@ from collections.abc import Generator
 _TMP_DB = os.path.join(tempfile.gettempdir(), "aligo_test_c2.db")
 os.environ["DATABASE_URL"] = f"sqlite:///{_TMP_DB}"
 os.environ["LEDGER_ENABLED"] = "false"
-os.environ["AGENT_SHARED_TOKEN"] = "test-token"
+os.environ["NODE_SHARED_TOKEN"] = "test-token"
 
 import pytest  # noqa: E402
 from sqlmodel import Session, SQLModel  # noqa: E402

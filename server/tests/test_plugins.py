@@ -1,4 +1,4 @@
-"""Tests for the agent's safe plugins (imported from the agent package)."""
+"""Tests for the node's safe plugins (imported from the node package)."""
 
 from __future__ import annotations
 
@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
-# Make the agent package importable (agent/ is a sibling of server/).
-_AGENT_DIR = Path(__file__).resolve().parents[2] / "agent"
-if str(_AGENT_DIR) not in sys.path:
-    sys.path.insert(0, str(_AGENT_DIR))
+# Make the node package importable (node/ is a sibling of server/).
+_NODE_DIR = Path(__file__).resolve().parents[2] / "node"
+if str(_NODE_DIR) not in sys.path:
+    sys.path.insert(0, str(_NODE_DIR))
 
 from plugins import allowed_command, list_lab_directory, system_info  # noqa: E402
 

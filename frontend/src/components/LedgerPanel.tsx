@@ -2,24 +2,26 @@ import { useState } from "react";
 import { api } from "../api/client";
 import type { LedgerEvent, VerifyResult } from "../types";
 import { formatTime, shortHash } from "../utils";
+import { IntegrityBadge } from "./HealthBadge";
 
-function VerifyPill({ result }: { result: VerifyResult }) {
-  const style =
-    result.status === "verified"
-      ? "text-soc-ok border-soc-ok/40 bg-soc-ok/10"
-      : result.status === "tampered"
-      ? "text-soc-err border-soc-err/40 bg-soc-err/10"
-      : "text-soc-warn border-soc-warn/40 bg-soc-warn/10";
-  return (
-    <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${style}`}>
-      {result.status}
-    </span>
-  );
+function isAnchored(status: string) {
+  return status === "confirmed" || status === "anchored";
 }
 
-function LedgerRow({ event }: { event: LedgerEvent }) {
+function LedgerRow({
+  event,
+  highlighted,
+  onAnchored,
+}: {
+  event: LedgerEvent;
+  highlighted?: boolean;
+  onAnchored?: () => void;
+}) {
   const [result, setResult] = useState<VerifyResult | null>(null);
   const [busy, setBusy] = useState(false);
+  const plugin =
+    (event.payload?.data as Record<string, unknown> | undefined)?.plugin ??
+    (event.event_type.includes("TASK") ? "task" : "");
 
   const verify = async () => {
     setBusy(true);
@@ -32,21 +34,47 @@ function LedgerRow({ event }: { event: LedgerEvent }) {
     }
   };
 
+  const anchor = async () => {
+    setBusy(true);
+    try {
+      await api.anchorLedgerEvent(event.id);
+      onAnchored?.();
+    } catch {
+      /* ignore */
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <tr className="border-b border-soc-border/40 last:border-0 hover:bg-soc-panel2/50 align-top">
+    <tr
+      className={`border-b border-soc-border/40 last:border-0 hover:bg-soc-panel2/50 align-top ${
+        highlighted ? "bg-soc-accent/10" : ""
+      }`}
+    >
       <td className="px-4 py-3">
         <div className="text-xs font-semibold text-white">{event.event_type}</div>
         <div className="text-[11px] text-soc-muted font-mono">#{event.sequence}</div>
-      </td>
-      <td className="px-4 py-3 text-xs text-soc-muted font-mono">
-        <div>local: <span className="text-soc-accent">{shortHash(event.payload_hash)}</span></div>
-        <div>prev: {shortHash(event.previous_hash)}</div>
+        {event.node_id && (
+          <div className="text-[11px] text-soc-muted">{event.node_id}</div>
+        )}
       </td>
       <td className="px-4 py-3 text-xs font-mono">
-        {event.onchain_status === "confirmed" ? (
-          <span className="text-soc-ok">block #{event.block_number}</span>
+        <div className="text-soc-accent">{String(plugin)}</div>
+        <div className="text-soc-muted">
+          local: {shortHash(event.payload_hash)}
+        </div>
+      </td>
+      <td className="px-4 py-3 text-xs font-mono">
+        {isAnchored(event.onchain_status) ? (
+          <>
+            <IntegrityBadge status="anchored" />
+            <div className="text-soc-muted mt-1">block #{event.block_number}</div>
+          </>
+        ) : event.onchain_status === "pending_chain" ? (
+          <IntegrityBadge status="pending_chain" />
         ) : (
-          <span className="text-soc-warn">{event.onchain_status}</span>
+          <IntegrityBadge status="local_only" />
         )}
         {event.tx_hash && (
           <div className="text-soc-muted">{shortHash(event.tx_hash, 6)}</div>
@@ -54,37 +82,48 @@ function LedgerRow({ event }: { event: LedgerEvent }) {
       </td>
       <td className="px-4 py-3 text-xs text-soc-muted">{formatTime(event.timestamp)}</td>
       <td className="px-4 py-3 text-right">
-        <div className="flex items-center justify-end gap-2">
-          {result && <VerifyPill result={result} />}
-          <button className="btn-ghost py-1 text-xs" onClick={verify} disabled={busy}>
-            {busy ? "…" : "Verify"}
+        <div className="flex items-center justify-end gap-1 flex-wrap">
+          {result && <IntegrityBadge status={result.status} />}
+          {event.onchain_status === "pending_chain" && (
+            <button className="btn-ghost py-0.5 text-[10px]" onClick={anchor} disabled={busy}>
+              Anchor
+            </button>
+          )}
+          <button className="btn-ghost py-0.5 text-[10px]" onClick={verify} disabled={busy}>
+            Verify
           </button>
         </div>
         {result && (
-          <div className="mt-1 text-[11px] text-soc-muted max-w-xs ml-auto">
-            {result.detail}
-          </div>
+          <div className="mt-1 text-[10px] text-soc-muted max-w-xs ml-auto">{result.detail}</div>
         )}
       </td>
     </tr>
   );
 }
 
-export function LedgerPanel({ events }: { events: LedgerEvent[] }) {
+export function LedgerPanel({
+  events,
+  highlightId,
+  onAnchored,
+}: {
+  events: LedgerEvent[];
+  highlightId?: string;
+  onAnchored?: () => void;
+}) {
   return (
     <div className="card overflow-hidden">
       <div className="px-4 py-3 border-b border-soc-border text-sm font-semibold text-white">
-        Proof-of-Execution Ledger
+        Event log
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-soc-muted border-b border-soc-border">
               <th className="px-4 py-3">Event</th>
-              <th className="px-4 py-3">Hashes</th>
+              <th className="px-4 py-3">Plugin / hash</th>
               <th className="px-4 py-3">On-chain</th>
               <th className="px-4 py-3">Time</th>
-              <th className="px-4 py-3 text-right">Integrity</th>
+              <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -95,7 +134,14 @@ export function LedgerPanel({ events }: { events: LedgerEvent[] }) {
                 </td>
               </tr>
             ) : (
-              events.map((e) => <LedgerRow key={e.id} event={e} />)
+              events.map((e) => (
+                <LedgerRow
+                  key={e.id}
+                  event={e}
+                  highlighted={e.id === highlightId}
+                  onAnchored={onAnchored}
+                />
+              ))
             )}
           </tbody>
         </table>

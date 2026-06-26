@@ -24,9 +24,9 @@ well-known public Hardhat key — never reuse it.
 
 ## Simple token, not real PKI
 
-Agent authentication is a single shared, static token (`AGENT_SHARED_TOKEN`) compared in
-constant time. Anyone holding it can register an agent. There is no per-agent identity,
-rotation, or mutual TLS. Real deployments would use certificates / mTLS and per-agent keys.
+Node authentication is a single shared, static token (`NODE_SHARED_TOKEN`) compared in
+constant time. Anyone holding it can register an node. There is no per-node identity,
+rotation, or mutual TLS. Real deployments would use certificates / mTLS and per-node keys.
 
 ## No transport encryption by default
 
@@ -41,12 +41,12 @@ PostgreSQL-ready (`SQLModel` + `DATABASE_URL`) for heavier concurrency.
 ## Plugins limited by safety
 
 Only six plugins exist, and `allowed_command` permits exactly four harmless commands. This
-caps usefulness on purpose. Adding plugins means adding them to both the agent registry and
+caps usefulness on purpose. Adding plugins means adding them to both the node registry and
 the server allowlist.
 
 ## Operational scope
 
-- In-memory connection state: agent/operator sockets are tracked per-process, so the server
+- In-memory connection state: node/operator sockets are tracked per-process, so the server
   is single-instance (no horizontal scaling/shared bus).
 - The heartbeat monitor and anchoring run in-process; there is no external job system.
 - Timeline replay and metrics are bounded to recent events for clarity.

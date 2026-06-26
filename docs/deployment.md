@@ -19,15 +19,15 @@ Copy `.env.example` to `.env`. Key variables:
 |----------|---------|---------|
 | `SERVER_HOST` / `SERVER_PORT` | `0.0.0.0` / `8000` | Server bind address |
 | `DATABASE_URL` | `sqlite:///./c2.db` | DB DSN (swap for PostgreSQL) |
-| `AGENT_SHARED_TOKEN` | `change-me-lab-token` | Token agents present on register |
+| `NODE_SHARED_TOKEN` | `change-me-lab-token` | Token nodes present on register |
 | `LEDGER_ENABLED` | `true` | Toggle on-chain anchoring |
 | `BLOCKCHAIN_RPC_URL` | `http://blockchain:8545` | Hardhat JSON-RPC endpoint |
-| `CONTRACT_ADDRESS` | _(empty)_ | Filled after deploy |
+| `CONTRACT_ADDRESS` | _(empty)_ | Filled after deploy; also auto-read from `deployment.json` at repo root |
 | `BLOCKCHAIN_PRIVATE_KEY` | Hardhat acct #0 | Signing key (lab only) |
 | `FRONTEND_URL` | `http://localhost:5173` | CORS origin |
 
-> The server also accepts agent-side env (`C2_WS_URL`, `AGENT_ID`, `AGENT_HEARTBEAT_INTERVAL`,
-> `AGENT_TASK_TIMEOUT`, `AGENT_RECONNECT_*`). See [`agent/config.py`](../agent/config.py).
+> The server also accepts node-side env (`C2_WS_URL`, `NODE_ID`, `NODE_HEARTBEAT_INTERVAL`,
+> `NODE_TASK_TIMEOUT`, `NODE_RECONNECT_*`). See [`node/config.py`](../node/config.py).
 
 ## Local (without Docker)
 
@@ -50,9 +50,9 @@ uvicorn app.main:app --reload --port 8000
 # 4) Frontend (terminal 4)
 cd frontend && npm install && npm run dev
 
-# 5) Agents (terminal 5)
-cd agent && python -m pip install -r requirements.txt
-python agent.py --simulate-count 3
+# 5) Nodes (terminal 5)
+cd node && python -m pip install -r requirements.txt
+python node.py --simulate-count 3
 ```
 
 > For local (non-Docker) runs, set `BLOCKCHAIN_RPC_URL=http://localhost:8545` in `.env`
@@ -60,12 +60,12 @@ python agent.py --simulate-count 3
 
 ### Windows PowerShell notes
 
-`make` may be unavailable; run the underlying commands directly. The agent connects to
-`C2_WS_URL` (default `ws://localhost:8000/ws/agent`); override per shell if needed:
+`make` may be unavailable; run the underlying commands directly. The node connects to
+`C2_WS_URL` (default `ws://localhost:8000/ws/node`); override per shell if needed:
 
 ```powershell
-$env:C2_WS_URL = "ws://localhost:8000/ws/agent"
-python agent.py --agent-id agent-001
+$env:C2_WS_URL = "ws://localhost:8000/ws/node"
+python node.py --node-id node-001
 ```
 
 ## Docker Compose
@@ -79,12 +79,12 @@ docker compose exec blockchain npx hardhat run scripts/deploy.ts --network local
 docker compose up -d --no-deps server
 ```
 
-Compose brings up `blockchain`, `server`, `frontend`, and two agents (`agent-1`,
-`agent-2`). The server waits for the blockchain healthcheck before starting.
+Compose brings up `blockchain`, `server`, `frontend`, and two nodes (`node-1`,
+`node-2`). The server waits for the blockchain healthcheck before starting.
 
 ## Make targets
 
-`make dev | server | frontend | blockchain | deploy-contract | agent | demo | test | clean`
+`make dev | server | frontend | blockchain | deploy-contract | node | demo | test | clean`
 (see [`Makefile`](../Makefile)). On Windows, use the explicit commands above.
 
 ## Troubleshooting
@@ -93,9 +93,11 @@ Compose brings up `blockchain`, `server`, `frontend`, and two agents (`agent-1`,
 |---------|-------------|
 | Dashboard shows "local only" for ledger | `CONTRACT_ADDRESS` empty, chain down, or `LEDGER_ENABLED=false`. Deploy the contract and set the address; restart the server. |
 | `HH501: Couldn't download compiler` | Hardhat needs internet on first compile to fetch `solc`. Run `npx hardhat compile` once with network access. |
-| Agents never go online | Wrong `C2_WS_URL` or bad `AGENT_SHARED_TOKEN`. Check both match the server's `.env`. |
-| Tasks immediately `failed` ("agent not connected") | Target agent isn't connected; start the agent or select online agents. |
+| Nodes never go online | Wrong `C2_WS_URL` or bad `NODE_SHARED_TOKEN`. Check both match the server's `.env`. |
+| Tasks immediately `failed` ("node not connected") | Target node isn't connected; start the node or select online nodes. |
 | CORS errors in browser | `FRONTEND_URL` doesn't match the dashboard origin. |
 | `No module named pip` | Bootstrap with `python -m ensurepip --upgrade`. |
 | Verify shows `pending_chain` | Event stored locally but not anchored (chain disabled/unreachable). Still locally consistent. |
+| `chain_status: contract_not_configured` | Set `CONTRACT_ADDRESS` in `.env` or run deploy (writes `deployment.json`), then **restart server**. |
+| Events stuck `pending_chain` | Use **Ledger → Anchor pending events** or `POST /api/ledger/anchor-pending`. |
 | Reset everything | `make clean` (or delete `server/c2.db`, `blockchain/artifacts`, `blockchain/cache`, `deployment.json`). |

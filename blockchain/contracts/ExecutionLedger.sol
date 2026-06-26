@@ -10,7 +10,7 @@ contract ExecutionLedger {
         string eventId;
         string missionId;
         string taskId;
-        string agentId;
+        string nodeId;
         string eventType;
         bytes32 payloadHash;
         bytes32 previousHash;
@@ -26,7 +26,7 @@ contract ExecutionLedger {
         string eventId,
         string missionId,
         string taskId,
-        string agentId,
+        string nodeId,
         string eventType,
         bytes32 payloadHash,
         bytes32 previousHash,
@@ -41,7 +41,7 @@ contract ExecutionLedger {
         string calldata eventId,
         string calldata missionId,
         string calldata taskId,
-        string calldata agentId,
+        string calldata nodeId,
         string calldata eventType,
         bytes32 payloadHash,
         bytes32 previousHash,
@@ -55,7 +55,7 @@ contract ExecutionLedger {
             eventId: eventId,
             missionId: missionId,
             taskId: taskId,
-            agentId: agentId,
+            nodeId: nodeId,
             eventType: eventType,
             payloadHash: payloadHash,
             previousHash: previousHash,
@@ -69,7 +69,7 @@ contract ExecutionLedger {
             eventId,
             missionId,
             taskId,
-            agentId,
+            nodeId,
             eventType,
             payloadHash,
             previousHash,
@@ -84,7 +84,7 @@ contract ExecutionLedger {
         returns (
             string memory missionId,
             string memory taskId,
-            string memory agentId,
+            string memory nodeId,
             string memory eventType,
             bytes32 payloadHash,
             bytes32 previousHash,
@@ -98,7 +98,7 @@ contract ExecutionLedger {
         return (
             e.missionId,
             e.taskId,
-            e.agentId,
+            e.nodeId,
             e.eventType,
             e.payloadHash,
             e.previousHash,

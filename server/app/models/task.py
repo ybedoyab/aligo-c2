@@ -20,7 +20,7 @@ class Task(SQLModel, table=True):
 
     id: str = Field(primary_key=True)
     mission_id: str = Field(foreign_key="missions.id", index=True)
-    agent_id: str = Field(foreign_key="agents.id", index=True)
+    node_id: str = Field(foreign_key="nodes.id", index=True)
     plugin: str
     args: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     status: TaskStatus = Field(default=TaskStatus.PENDING)

@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { api } from "../api/client";
 import { TimelineReplay } from "../components/TimelineReplay";
+import { TaskEvidenceModal } from "../components/TaskEvidenceModal";
+import { IntegrityBadge } from "../components/HealthBadge";
 import { useC2 } from "../store";
 
 function BigButton({
@@ -18,7 +20,7 @@ function BigButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="card p-6 text-left hover:border-soc-accent transition-colors disabled:opacity-50"
+      className="card p-6 text-left hover:border-soc-accent transition-colors disabled:opacity-50 w-full"
     >
       <div className="text-lg font-semibold text-white">{title}</div>
       <div className="text-sm text-soc-muted mt-1">{subtitle}</div>
@@ -27,51 +29,108 @@ function BigButton({
 }
 
 export function Demo() {
-  const { ledger, agents, refreshAll } = useC2();
+  const { ledger, nodes, missions, tasks, results, refreshAll } = useC2();
   const [log, setLog] = useState<string[]>([]);
   const [showReplay, setShowReplay] = useState(false);
+  const [evidenceTaskId, setEvidenceTaskId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const append = (line: string) =>
-    setLog((prev) => [`${new Date().toLocaleTimeString()}  ${line}`, ...prev].slice(0, 30));
+    setLog((prev) => [`${new Date().toLocaleTimeString()}  ${line}`, ...prev].slice(0, 40));
 
-  const startSample = async () => {
+  const onlineCount = nodes.filter((a) => a.status === "online").length;
+  const anchored = ledger.filter(
+    (e) => e.onchain_status === "anchored" || e.onchain_status === "confirmed"
+  ).length;
+
+  const jurySteps = useMemo(
+    () => [
+      {
+        n: 1,
+        label: "Nodes connected",
+        done: onlineCount > 0,
+        detail: `${onlineCount} online`,
+      },
+      {
+        n: 2,
+        label: "Mission created",
+        done: missions.some((m) => m.status !== "draft"),
+        detail: `${missions.length} in library`,
+      },
+      {
+        n: 3,
+        label: "Tasks executed",
+        done: tasks.some((t) => t.status === "success"),
+        detail: `${tasks.filter((t) => t.status === "success").length} succeeded`,
+      },
+      {
+        n: 4,
+        label: "Results received",
+        done: results.length > 0,
+        detail: `${results.length} results`,
+      },
+      {
+        n: 5,
+        label: "Evidence on ledger",
+        done: ledger.some((e) =>
+          ["TASK_RESULT", "TASK_SENT"].includes(e.event_type)
+        ),
+        detail: `${anchored} anchored · ${ledger.length} events`,
+      },
+    ],
+    [onlineCount, missions, tasks, results, ledger, anchored]
+  );
+
+  const run = async (fn: () => Promise<void>) => {
+    setBusy(true);
     try {
-      const res = await api.startSampleMission();
-      append(`Started "${res.mission.name}" on ${res.targets.length} agent(s).`);
+      await fn();
       refreshAll();
-    } catch (e) {
-      append(`Error: ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
     }
   };
 
-  const runHealthCheck = async () => {
-    const online = agents.filter((a) => a.status === "online");
-    if (online.length === 0) {
-      append("No agents online. Start agents first.");
-      return;
-    }
-    try {
+  const startSample = () =>
+    run(async () => {
+      const res = await api.startSampleMission();
+      append(`✓ Started "${res.mission.name}" on ${res.targets.join(", ")}`);
+    }).catch((e) => append(`✗ ${(e as Error).message}`));
+
+  const runHealthCheck = () =>
+    run(async () => {
+      const online = nodes.filter((a) => a.status === "online");
+      if (!online.length) throw new Error("no nodes online");
       for (const a of online) {
-        await api.createTask({ agent_id: a.id, plugin: "health_check", args: {} });
+        await api.createTask({ node_id: a.id, plugin: "health_check", args: {} });
       }
-      append(`Health check dispatched to ${online.length} agent(s).`);
-    } catch (e) {
-      append(`Error: ${(e as Error).message}`);
-    }
-  };
+      append(`✓ health_check → ${online.map((a) => a.id).join(", ")}`);
+    }).catch((e) => append(`✗ ${(e as Error).message}`));
 
-  const verifyLatest = async () => {
-    if (ledger.length === 0) {
-      append("No ledger events to verify yet.");
+  const anchorPending = () =>
+    run(async () => {
+      const res = await api.anchorPendingLedger();
+      const ok = res.filter((r) => r.success).length;
+      append(`✓ Anchored ${ok}/${res.length} pending ledger event(s)`);
+    }).catch((e) => append(`✗ ${(e as Error).message}`));
+
+  const verifyLatest = () =>
+    run(async () => {
+      const taskEvent = ledger.find((e) => e.event_type === "TASK_RESULT");
+      const target = taskEvent ?? ledger[0];
+      if (!target) throw new Error("no ledger events yet");
+      const v = await api.verifyLedgerEvent(target.id);
+      append(`✓ Verify ${target.event_type}: ${v.status} — ${v.detail}`);
+    }).catch((e) => append(`✗ ${(e as Error).message}`));
+
+  const openLatestEvidence = () => {
+    const latest = results[0];
+    if (!latest) {
+      append("✗ No results yet — run a mission first");
       return;
     }
-    try {
-      const latest = ledger[0];
-      const result = await api.verifyLedgerEvent(latest.id);
-      append(`Verify ${latest.event_type}: ${result.status.toUpperCase()} — ${result.detail}`);
-    } catch (e) {
-      append(`Error: ${(e as Error).message}`);
-    }
+    setEvidenceTaskId(latest.task_id);
+    append(`✓ Opened evidence for ${latest.task_id}`);
   };
 
   return (
@@ -79,56 +138,111 @@ export function Demo() {
       <div>
         <h1 className="text-xl font-semibold text-white">Demo Control</h1>
         <p className="text-sm text-soc-muted">
-          One-click flow for the jury: connect agents, run a mission, verify integrity.
+          Jury-ready one-click demo: missions, health checks, ledger anchoring, and
+          integrity verification.
         </p>
+      </div>
+
+      <div className="card p-5">
+        <h2 className="text-sm font-semibold text-white mb-3">Jury mode — 5-step story</h2>
+        <ol className="space-y-2">
+          {jurySteps.map((s) => (
+            <li
+              key={s.n}
+              className={`flex items-center justify-between rounded-lg border px-4 py-2 text-sm ${
+                s.done
+                  ? "border-soc-ok/40 bg-soc-ok/5"
+                  : "border-soc-border bg-soc-panel2/30"
+              }`}
+            >
+              <span className="text-white">
+                {s.done ? "✓" : "○"} {s.n}. {s.label}
+              </span>
+              <span className="text-xs text-soc-muted">{s.detail}</span>
+            </li>
+          ))}
+        </ol>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <BigButton
-          title="1 · Start sample mission"
-          subtitle="Run Lab Health Check across all connected agents"
+          title="Start sample mission"
+          subtitle="Lab Health Check on all connected nodes"
           onClick={startSample}
+          disabled={busy}
         />
-        <div className="card p-6">
-          <div className="text-lg font-semibold text-white">2 · Connect agents</div>
-          <div className="text-sm text-soc-muted mt-1">
-            Launch simulated agents from a terminal:
-          </div>
-          <code className="mt-2 block bg-soc-bg border border-soc-border rounded-lg p-2 text-xs text-soc-accent">
-            python agent.py --simulate-count 3
-          </code>
-        </div>
         <BigButton
-          title="3 · Run health check"
-          subtitle="Send a health_check task to every online agent"
+          title="Run health check on all"
+          subtitle="Dispatch health_check plugin to every online node"
           onClick={runHealthCheck}
+          disabled={busy}
         />
         <BigButton
-          title="4 · Verify ledger"
-          subtitle="Verify the most recent ledger event end-to-end"
+          title="Anchor pending ledger events"
+          subtitle="Push pending_chain events to the blockchain"
+          onClick={anchorPending}
+          disabled={busy}
+        />
+        <BigButton
+          title="Verify latest ledger event"
+          subtitle="Compare local hash vs on-chain record"
           onClick={verifyLatest}
+          disabled={busy}
         />
         <BigButton
-          title="5 · Show replay"
-          subtitle="Animate the timeline of the operation"
-          onClick={() => setShowReplay((s) => !s)}
+          title="Show replay"
+          subtitle="Animate the operation timeline"
+          onClick={() => {
+            setShowReplay((s) => !s);
+            append(showReplay ? "Timeline replay hidden" : "Timeline replay shown");
+          }}
+        />
+        <BigButton
+          title="Open latest task evidence"
+          subtitle="Task Execution Evidence modal for the newest result"
+          onClick={openLatestEvidence}
+          disabled={busy}
         />
       </div>
 
-      {showReplay && <TimelineReplay events={ledger} />}
+      <div className="card p-4 text-xs text-soc-muted">
+        <span className="text-white font-medium">Connect nodes:</span>{" "}
+        <code className="text-soc-accent">python node.py --simulate-count 3</code>
+        {" · "}
+        <span className="text-white font-medium">Deploy contract:</span> set{" "}
+        <code className="text-soc-accent">CONTRACT_ADDRESS</code> in .env
+      </div>
+
+      {showReplay && (
+        <TimelineReplay events={ledger} missions={missions} tasks={tasks} />
+      )}
 
       <div className="card p-4">
-        <div className="text-sm font-semibold text-white mb-2">Activity log</div>
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-sm font-semibold text-white">Activity log</div>
+          <IntegrityBadge
+            status={
+              anchored > 0 ? "anchored" : ledger.length ? "pending_chain" : "unknown"
+            }
+          />
+        </div>
         {log.length === 0 ? (
-          <div className="text-sm text-soc-muted">Actions you trigger will appear here.</div>
+          <div className="text-sm text-soc-muted">
+            Click a demo button — each action logs here.
+          </div>
         ) : (
-          <ul className="space-y-1 font-mono text-xs text-soc-muted">
+          <ul className="space-y-1 font-mono text-xs text-soc-muted max-h-48 overflow-y-auto">
             {log.map((line, i) => (
               <li key={i}>{line}</li>
             ))}
           </ul>
         )}
       </div>
+
+      <TaskEvidenceModal
+        taskId={evidenceTaskId}
+        onClose={() => setEvidenceTaskId(null)}
+      />
     </div>
   );
 }

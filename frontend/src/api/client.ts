@@ -1,10 +1,15 @@
 import type {
-  Agent,
+  Node,
+  NodeDetail,
+  AnchorResult,
+  ChainStatusInfo,
   LedgerEvent,
+  LedgerStats,
   Mission,
   MissionStep,
   Result,
   Task,
+  TaskEvidence,
   VerifyResult,
 } from "../types";
 
@@ -42,13 +47,16 @@ export interface HealthInfo {
   ledger_enabled: boolean;
   ledger_available: boolean;
   ledger_detail: string;
+  chain_status?: string;
+  contract_address?: string | null;
 }
 
 export const api = {
   health: () => http<HealthInfo>("/health"),
 
-  listAgents: () => http<Agent[]>("/api/agents"),
-  getAgent: (id: string) => http<Agent>(`/api/agents/${id}`),
+  listNodes: () => http<Node[]>("/api/nodes"),
+  getNode: (id: string) => http<Node>(`/api/nodes/${id}`),
+  getNodeDetail: (id: string) => http<NodeDetail>(`/api/nodes/${id}/detail`),
 
   listMissions: () => http<Mission[]>("/api/missions"),
   getMission: (id: string) => http<Mission>(`/api/missions/${id}`),
@@ -56,22 +64,29 @@ export const api = {
     name: string;
     description: string;
     steps: MissionStep[];
-    target_agent_ids: string[];
+    target_node_ids: string[];
   }) =>
     http<Mission>("/api/missions", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  startMission: (id: string, target_agent_ids?: string[]) =>
+  startMission: (id: string, target_node_ids?: string[]) =>
     http<{ mission: Mission; tasks: Task[] }>(`/api/missions/${id}/start`, {
       method: "POST",
-      body: JSON.stringify({ target_agent_ids: target_agent_ids ?? null }),
+      body: JSON.stringify({ target_node_ids: target_node_ids ?? null }),
     }),
 
-  listTasks: (missionId?: string) =>
-    http<Task[]>(`/api/tasks${missionId ? `?mission_id=${missionId}` : ""}`),
+  listTasks: (opts?: { missionId?: string; nodeId?: string }) => {
+    const params = new URLSearchParams();
+    if (opts?.missionId) params.set("mission_id", opts.missionId);
+    if (opts?.nodeId) params.set("node_id", opts.nodeId);
+    const q = params.toString();
+    return http<Task[]>(`/api/tasks${q ? `?${q}` : ""}`);
+  },
+  getTaskEvidence: (taskId: string) =>
+    http<TaskEvidence>(`/api/tasks/${taskId}/evidence`),
   createTask: (payload: {
-    agent_id: string;
+    node_id: string;
     plugin: string;
     args: Record<string, unknown>;
     mission_id?: string;
@@ -84,10 +99,16 @@ export const api = {
   listResults: (missionId?: string) =>
     http<Result[]>(`/api/results${missionId ? `?mission_id=${missionId}` : ""}`),
 
+  ledgerStatus: () => http<ChainStatusInfo>("/api/ledger/status"),
+  ledgerStats: () => http<LedgerStats>("/api/ledger/stats"),
   listLedger: () => http<LedgerEvent[]>("/api/ledger/events"),
   getLedgerEvent: (id: string) => http<LedgerEvent>(`/api/ledger/events/${id}`),
   verifyLedgerEvent: (id: string) =>
     http<VerifyResult>(`/api/ledger/events/${id}/verify`, { method: "POST" }),
+  anchorLedgerEvent: (id: string) =>
+    http<AnchorResult>(`/api/ledger/events/${id}/anchor`, { method: "POST" }),
+  anchorPendingLedger: () =>
+    http<AnchorResult[]>("/api/ledger/anchor-pending", { method: "POST" }),
 
   startSampleMission: () =>
     http<{ mission: Mission; tasks: Task[]; targets: string[] }>(

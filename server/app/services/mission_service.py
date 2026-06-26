@@ -25,7 +25,7 @@ def create_mission(session: Session, payload: MissionCreate) -> Mission:
         description=payload.description,
         status=MissionStatus.DRAFT,
         steps=[step.model_dump() for step in payload.steps],
-        target_agent_ids=payload.target_agent_ids,
+        target_node_ids=payload.target_node_ids,
         is_predefined=False,
     )
     session.add(mission)
@@ -45,28 +45,28 @@ def get_mission(session: Session, mission_id: str) -> Mission | None:
 
 
 def start_mission(
-    session: Session, mission_id: str, target_agent_ids: list[str]
+    session: Session, mission_id: str, target_node_ids: list[str]
 ) -> tuple[Mission, list[Task]]:
-    """Mark a mission running and generate one task per (step x target agent)."""
+    """Mark a mission running and generate one task per (step x target node)."""
     mission = session.get(Mission, mission_id)
     if mission is None:
         raise ValueError(f"mission {mission_id} not found")
-    if not target_agent_ids:
-        raise ValueError("at least one target agent is required")
+    if not target_node_ids:
+        raise ValueError("at least one target node is required")
 
     mission.status = MissionStatus.RUNNING
     mission.started_at = _utcnow()
-    mission.target_agent_ids = target_agent_ids
+    mission.target_node_ids = target_node_ids
     session.add(mission)
     session.commit()
 
     tasks: list[Task] = []
-    for agent_id in target_agent_ids:
+    for node_id in target_node_ids:
         for step in mission.steps:
             task = task_service.create_task(
                 session,
                 mission_id=mission.id,
-                agent_id=agent_id,
+                node_id=node_id,
                 plugin=step["plugin"],
                 args=step.get("args", {}),
             )
