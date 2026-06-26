@@ -5,10 +5,12 @@ import { NodeFilters } from "../components/NodeFilters";
 import { NodeTable } from "../components/NodeTable";
 import { ResultViewer } from "../components/ResultViewer";
 import { TaskEvidenceModal } from "../components/TaskEvidenceModal";
+import { useI18n } from "../i18n";
 import type { Node } from "../types";
 import { useC2 } from "../store";
 
 export function Nodes() {
+  const { t } = useI18n();
   const { results, tasks } = useC2();
   const [nodes, setNodes] = useState<Node[]>([]);
   const [evidenceTaskId, setEvidenceTaskId] = useState<string | null>(null);
@@ -42,11 +44,8 @@ export function Nodes() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-white">Nodes</h1>
-        <p className="text-sm text-soc-muted">
-          Registry of laboratory nodes. Click a node for detail, metadata editing, and
-          evidence. Online status reflects live WebSocket connections only.
-        </p>
+        <h1 className="text-xl font-semibold text-white">{t("nodes.title")}</h1>
+        <p className="text-sm text-soc-muted">{t("nodes.description")}</p>
       </div>
 
       <NodeFilters nodes={nodes} onChange={loadNodes} />
@@ -67,10 +66,7 @@ export function Nodes() {
         onOpenEvidence={setEvidenceTaskId}
       />
 
-      <TaskEvidenceModal
-        taskId={evidenceTaskId}
-        onClose={() => setEvidenceTaskId(null)}
-      />
+      <TaskEvidenceModal taskId={evidenceTaskId} onClose={() => setEvidenceTaskId(null)} />
     </div>
   );
 }

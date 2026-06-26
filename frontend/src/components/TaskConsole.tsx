@@ -1,6 +1,41 @@
 import type { Task } from "../types";
-import { formatTime } from "../utils";
+import { useI18n } from "../i18n";
 import { StatusBadge } from "./HealthBadge";
+
+function TaskRow({
+  task,
+  onOpenEvidence,
+}: {
+  task: Task;
+  onOpenEvidence?: (taskId: string) => void;
+}) {
+  const { t, formatTime } = useI18n();
+
+  return (
+    <div className="border-b border-soc-border/50 last:border-0">
+      <button
+        type="button"
+        className={`w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 text-left row-hover ${
+          onOpenEvidence ? "cursor-pointer" : ""
+        }`}
+        onClick={() => onOpenEvidence?.(task.id)}
+      >
+        <div className="flex flex-wrap items-center gap-3 min-w-0">
+          <span className="font-mono text-xs text-soc-accent">{task.plugin}</span>
+          <span className="font-mono text-xs text-white">{task.node_id}</span>
+          <span className="text-xs text-soc-muted font-mono break-all">{task.mission_id}</span>
+          <StatusBadge status={task.status} />
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-soc-muted sm:shrink-0">
+          <span>{formatTime(task.sent_at ?? task.created_at)}</span>
+          {onOpenEvidence && (
+            <span className="text-soc-accent">{t("common.viewEvidence")}</span>
+          )}
+        </div>
+      </button>
+    </div>
+  );
+}
 
 export function TaskConsole({
   tasks,
@@ -9,65 +44,24 @@ export function TaskConsole({
   tasks: Task[];
   onOpenEvidence?: (taskId: string) => void;
 }) {
+  const { t } = useI18n();
+
   return (
-    <div className="card overflow-hidden">
-      <div className="px-4 py-3 border-b border-soc-border text-sm font-semibold text-white">
-        Task activity
+    <div className="card-static overflow-hidden h-full flex flex-col">
+      <div className="panel-header">
+        {t("taskConsole.title")}
       </div>
-      <div className="max-h-80 overflow-y-auto">
-        {tasks.length === 0 ? (
-          <div className="px-4 py-8 text-center text-sm text-soc-muted">
-            No tasks dispatched yet.
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase text-soc-muted border-b border-soc-border">
-                <th className="px-4 py-2">Plugin</th>
-                <th className="px-4 py-2">Node</th>
-                <th className="px-4 py-2">Mission</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2 text-right">Evidence</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tasks.map((t) => (
-                <tr
-                  key={t.id}
-                  className={`border-b border-soc-border/40 last:border-0 hover:bg-soc-panel2/50 ${
-                    onOpenEvidence ? "cursor-pointer" : ""
-                  }`}
-                  onClick={() => onOpenEvidence?.(t.id)}
-                >
-                  <td className="px-4 py-2 font-mono text-xs text-soc-accent">{t.plugin}</td>
-                  <td className="px-4 py-2 font-mono text-xs text-white">{t.node_id}</td>
-                  <td className="px-4 py-2 font-mono text-xs text-soc-muted truncate max-w-[120px]">
-                    {t.mission_id}
-                  </td>
-                  <td className="px-4 py-2">
-                    <StatusBadge status={t.status} />
-                  </td>
-                  <td className="px-4 py-2 text-right text-xs">
-                    {formatTime(t.sent_at ?? t.created_at)}
-                    {onOpenEvidence && (
-                      <button
-                        type="button"
-                        className="ml-2 text-soc-accent hover:underline"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onOpenEvidence(t.id);
-                        }}
-                      >
-                        View evidence
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {tasks.length === 0 ? (
+        <div className="px-4 py-8 text-center text-sm text-soc-muted flex-1">
+          {t("taskConsole.empty")}
+        </div>
+      ) : (
+        <div className="flex-1">
+          {tasks.map((task) => (
+            <TaskRow key={task.id} task={task} onOpenEvidence={onOpenEvidence} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api/client";
+import { useI18n } from "../i18n";
 import {
   ALLOWED_PLUGINS,
   type Node,
@@ -10,6 +11,7 @@ import {
 interface Props {
   nodes: Node[];
   onChanged: () => void;
+  embedded?: boolean;
 }
 
 const DEFAULT_ARGS: Partial<Record<PluginName, string>> = {
@@ -37,8 +39,9 @@ interface DraftStep {
   argsText: string;
 }
 
-export function MissionBuilder({ nodes, onChanged }: Props) {
-  const [name, setName] = useState("Custom Mission");
+export function MissionBuilder({ nodes, onChanged, embedded }: Props) {
+  const { t, translateError } = useI18n();
+  const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [steps, setSteps] = useState<DraftStep[]>([
     { plugin: "health_check", argsText: "{}" },
@@ -46,6 +49,10 @@ export function MissionBuilder({ nodes, onChanged }: Props) {
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    setName((prev) => (prev === "" ? t("missions.customMission") : prev));
+  }, [t]);
 
   const toggleNode = (id: string) =>
     setSelected((prev) =>
@@ -80,25 +87,27 @@ export function MissionBuilder({ nodes, onChanged }: Props) {
       });
       if (run) {
         if (selected.length === 0) {
-          throw new Error("select at least one node to run the mission");
+          throw new Error(t("errors.selectNodeToRun"));
         }
         await api.startMission(mission.id, selected);
       }
       onChanged();
     } catch (e) {
-      setError((e as Error).message);
+      setError(translateError((e as Error).message));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="card p-5 flex flex-col gap-4">
-      <h3 className="text-sm font-semibold text-white">Build a mission</h3>
+    <div className={embedded ? "flex flex-col gap-4" : "card p-5 flex flex-col gap-4"}>
+      {!embedded && (
+        <h3 className="text-sm font-semibold text-white">{t("missions.buildMission")}</h3>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <label className="flex flex-col gap-1 text-xs text-soc-muted">
-          Name
+          {t("missions.name")}
           <input
             className="input"
             value={name}
@@ -106,7 +115,7 @@ export function MissionBuilder({ nodes, onChanged }: Props) {
           />
         </label>
         <label className="flex flex-col gap-1 text-xs text-soc-muted">
-          Description
+          {t("nodeDetail.description")}
           <input
             className="input"
             value={description}
@@ -117,15 +126,15 @@ export function MissionBuilder({ nodes, onChanged }: Props) {
 
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-soc-muted">Steps (plugins)</span>
+          <span className="text-xs text-soc-muted">{t("missions.stepsPlugins")}</span>
           <button className="btn-ghost py-1 text-xs" onClick={addStep}>
-            + Add step
+            {t("missions.addStep")}
           </button>
         </div>
         {steps.map((step, idx) => (
-          <div key={idx} className="flex items-center gap-2">
+          <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-2">
             <select
-              className="input text-xs"
+              className="input text-xs sm:max-w-[180px]"
               value={step.plugin}
               onChange={(e) =>
                 updateStep(idx, {
@@ -144,24 +153,24 @@ export function MissionBuilder({ nodes, onChanged }: Props) {
               className="input flex-1 font-mono text-xs"
               value={step.argsText}
               onChange={(e) => updateStep(idx, { argsText: e.target.value })}
-              placeholder='args JSON, e.g. {"text":"hi"}'
+              placeholder={t("missions.argsPlaceholder")}
             />
             <button
               className="btn-ghost py-1 text-xs"
               onClick={() => removeStep(idx)}
               disabled={steps.length === 1}
             >
-              ✕
+              ×
             </button>
           </div>
         ))}
       </div>
 
       <div className="flex flex-col gap-2">
-        <span className="text-xs text-soc-muted">Target nodes</span>
+        <span className="text-xs text-soc-muted">{t("missions.targetNodes")}</span>
         <div className="flex flex-wrap gap-2">
           {nodes.length === 0 && (
-            <span className="text-xs text-soc-muted">No nodes connected.</span>
+            <span className="text-xs text-soc-muted">{t("missions.noNodesConnected")}</span>
           )}
           {nodes.map((a) => (
             <button
@@ -169,8 +178,8 @@ export function MissionBuilder({ nodes, onChanged }: Props) {
               onClick={() => toggleNode(a.id)}
               className={`rounded-lg border px-3 py-1.5 text-xs font-mono transition-colors ${
                 selected.includes(a.id)
-                  ? "border-soc-accent bg-soc-accent/15 text-soc-accent"
-                  : "border-soc-border text-soc-muted hover:border-soc-accent"
+                  ? "border-soc-brand bg-soc-brand/15 text-soc-brand"
+                  : "border-soc-border text-soc-muted hover:border-soc-brand"
               }`}
             >
               {a.id}
@@ -181,12 +190,12 @@ export function MissionBuilder({ nodes, onChanged }: Props) {
 
       {error && <div className="text-xs text-soc-err">{error}</div>}
 
-      <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row gap-2">
         <button className="btn-ghost" disabled={busy} onClick={() => submit(false)}>
-          Save draft
+          {t("missions.saveDraft")}
         </button>
         <button className="btn-primary" disabled={busy} onClick={() => submit(true)}>
-          {busy ? "Working…" : "Create & run"}
+          {busy ? t("common.working") : t("missions.createAndRun")}
         </button>
       </div>
     </div>

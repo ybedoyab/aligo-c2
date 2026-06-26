@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Node } from "../types";
+import { useI18n } from "../i18n";
 
 interface Props {
   nodes: Node[];
@@ -13,7 +14,8 @@ interface Props {
 }
 
 export function NodeFilters({ nodes, onChange }: Props) {
-  const [status, setStatus] = useState("");
+  const { t, status } = useI18n();
+  const [filterStatus, setFilterStatus] = useState("");
   const [os, setOs] = useState("");
   const [group, setGroup] = useState("");
   const [tag, setTag] = useState("");
@@ -28,22 +30,48 @@ export function NodeFilters({ nodes, onChange }: Props) {
     [nodes]
   );
 
-  const apply = () => onChange({ status, os, group, tag, minHealth });
+  const apply = () => onChange({ status: filterStatus, os, group, tag, minHealth });
+
+  const statusOptions = ["", "online", "offline", "warning"];
 
   return (
     <div className="card p-4 flex flex-wrap gap-3 items-end">
-      <FilterSelect label="Status" value={status} onChange={setStatus} options={["", "online", "offline", "warning"]} />
-      <FilterInput label="OS contains" value={os} onChange={setOs} />
-      <FilterSelect label="Group" value={group} onChange={setGroup} options={["", ...groups]} />
-      <FilterSelect label="Tag" value={tag} onChange={setTag} options={["", ...tags]} />
-      <FilterInput label="Min health" value={minHealth} onChange={setMinHealth} type="number" />
+      <FilterSelect
+        className="flex-1 min-w-[9rem]"
+        label={t("nodes.status")}
+        value={filterStatus}
+        onChange={setFilterStatus}
+        options={statusOptions.map((o) => ({ value: o, label: o ? status(o) : t("common.all") }))}
+      />
+      <FilterInput label={t("nodes.osContains")} value={os} onChange={setOs} className="flex-1 min-w-[9rem]" />
+      <FilterSelect
+        className="flex-1 min-w-[9rem]"
+        label={t("nodes.group")}
+        value={group}
+        onChange={setGroup}
+        options={["", ...groups].map((o) => ({ value: o, label: o || t("common.all") }))}
+      />
+      <FilterSelect
+        className="flex-1 min-w-[9rem]"
+        label={t("nodes.tag")}
+        value={tag}
+        onChange={setTag}
+        options={["", ...tags].map((o) => ({ value: o, label: o || t("common.all") }))}
+      />
+      <FilterInput
+        label={t("nodes.minHealth")}
+        value={minHealth}
+        onChange={setMinHealth}
+        type="number"
+        className="flex-1 min-w-[9rem]"
+      />
       <button className="btn-primary text-xs" onClick={apply}>
-        Apply filters
+        {t("common.applyFilters")}
       </button>
       <button
         className="btn-ghost text-xs"
         onClick={() => {
-          setStatus("");
+          setFilterStatus("");
           setOs("");
           setGroup("");
           setTag("");
@@ -51,7 +79,7 @@ export function NodeFilters({ nodes, onChange }: Props) {
           onChange({ status: "", os: "", group: "", tag: "", minHealth: "" });
         }}
       >
-        Clear
+        {t("common.clear")}
       </button>
     </div>
   );
@@ -62,19 +90,21 @@ function FilterSelect({
   value,
   onChange,
   options,
+  className = "",
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
-  options: string[];
+  options: { value: string; label: string }[];
+  className?: string;
 }) {
   return (
-    <label className="flex flex-col gap-1 text-xs text-soc-muted">
+    <label className={`flex flex-col gap-1 text-xs text-soc-muted ${className}`}>
       {label}
       <select className="input text-xs" value={value} onChange={(e) => onChange(e.target.value)}>
         {options.map((o) => (
-          <option key={o || "all"} value={o}>
-            {o || "All"}
+          <option key={o.value || "all"} value={o.value}>
+            {o.label}
           </option>
         ))}
       </select>
@@ -87,17 +117,19 @@ function FilterInput({
   value,
   onChange,
   type = "text",
+  className = "",
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   type?: string;
+  className?: string;
 }) {
   return (
-    <label className="flex flex-col gap-1 text-xs text-soc-muted">
+    <label className={`flex flex-col gap-1 text-xs text-soc-muted ${className}`}>
       {label}
       <input
-        className="input text-xs w-28"
+        className="input text-xs w-full"
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}

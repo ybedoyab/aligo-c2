@@ -1,3 +1,4 @@
+import { useI18n } from "../i18n";
 import type { NodeStatus, MissionStatus, TaskStatus } from "../types";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -28,6 +29,11 @@ const STATUS_STYLES: Record<string, string> = {
   connected: "bg-soc-ok/15 text-soc-ok border-soc-ok/40",
   contract_not_configured: "bg-soc-warn/15 text-soc-warn border-soc-warn/40",
   disconnected: "bg-soc-err/15 text-soc-err border-soc-err/40",
+  dispatching: "bg-soc-accent/15 text-soc-accent border-soc-accent/40",
+  READY: "bg-soc-ok/15 text-soc-ok border-soc-ok/40",
+  BLOCKED: "bg-soc-warn/15 text-soc-warn border-soc-warn/40",
+  VERIFIED: "bg-soc-ok/15 text-soc-ok border-soc-ok/40",
+  TAMPERED: "bg-soc-err/15 text-soc-err border-soc-err/40",
 };
 
 export function StatusBadge({
@@ -35,13 +41,14 @@ export function StatusBadge({
 }: {
   status: NodeStatus | MissionStatus | TaskStatus | string;
 }) {
+  const { status: statusLabel } = useI18n();
   const style = STATUS_STYLES[status] ?? "bg-soc-muted/10 text-soc-muted border-soc-border";
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${style}`}
     >
       <span className="h-1.5 w-1.5 rounded-full bg-current" />
-      {status.replace(/_/g, " ")}
+      {statusLabel(status)}
     </span>
   );
 }
@@ -77,18 +84,19 @@ export function NodeMetaBadges({
   trusted: boolean;
   nodeType: string;
 }) {
+  const { t } = useI18n();
   return (
     <div className="flex flex-wrap gap-1">
       <StatusBadge status={enabled ? "online" : "disabled"} />
       <StatusBadge status={trusted ? "trusted" : "untrusted"} />
       {nodeType === "ai_analyst" && (
         <span className="text-xs rounded-full border border-soc-accent/40 px-2 py-0.5 text-soc-accent">
-          ai analyst
+          {t("nodeType.ai_analyst")}
         </span>
       )}
       {nodeType === "simulated" && (
         <span className="text-xs rounded-full border border-soc-muted px-2 py-0.5 text-soc-muted">
-          simulated
+          {t("nodeType.simulated")}
         </span>
       )}
     </div>
