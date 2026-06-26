@@ -1,0 +1,22 @@
+{
+  "name": "aligo-execution-ledger",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local Hardhat blockchain and ExecutionLedger contract for Aligo Mission Ledger C2",
+  "scripts": {
+    "node": "hardhat node",
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.ts --network localhost",
+    "test": "hardhat test"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.10",
+    "typescript": "^5.5.4",
+    "ts-node": "^10.9.2",
+    "@types/node": "^20.14.0",
+    "@types/mocha": "^10.0.7",
+    "@types/chai": "^4.3.16",
+    "chai": "^4.4.1"
+  }
+}

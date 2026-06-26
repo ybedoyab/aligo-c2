@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+*.db
+*.sqlite3
+
+# Node
+node_modules/
+dist/
+.vite/
+*.log
+
+# Hardhat / blockchain
+blockchain/artifacts/
+blockchain/cache/
+blockchain/typechain-types/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Project runtime data
+server/c2.db
+deployment.json

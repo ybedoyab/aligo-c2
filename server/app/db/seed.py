@@ -1,0 +1,67 @@
+"""Seed predefined missions so the dashboard and demo work out of the box."""
+
+from __future__ import annotations
+
+from sqlmodel import Session, select
+
+from app.core.enums import MissionStatus
+from app.db.database import engine
+from app.models.mission import Mission
+
+PREDEFINED_MISSIONS: list[dict] = [
+    {
+        "id": "mission-lab-health-check",
+        "name": "Lab Health Check",
+        "description": "Verify each agent is healthy and report basic system info.",
+        "steps": [
+            {"plugin": "health_check", "args": {}},
+            {"plugin": "system_info", "args": {}},
+        ],
+    },
+    {
+        "id": "mission-basic-recon",
+        "name": "Basic Recon",
+        "description": "Collect safe, local system and network information.",
+        "steps": [
+            {"plugin": "system_info", "args": {}},
+            {"plugin": "network_info", "args": {}},
+        ],
+    },
+    {
+        "id": "mission-directory-audit",
+        "name": "Directory Audit",
+        "description": "List the contents of each agent's sandboxed lab workspace.",
+        "steps": [
+            {"plugin": "list_lab_directory", "args": {"path": "."}},
+        ],
+    },
+    {
+        "id": "mission-multi-agent-ping",
+        "name": "Multi-Agent Ping",
+        "description": "Echo a ping and confirm health across every selected agent.",
+        "steps": [
+            {"plugin": "echo", "args": {"text": "ping"}},
+            {"plugin": "health_check", "args": {}},
+        ],
+    },
+]
+
+
+def seed_predefined_missions() -> None:
+    """Insert the predefined mission templates if they do not already exist."""
+    with Session(engine) as session:
+        for spec in PREDEFINED_MISSIONS:
+            existing = session.get(Mission, spec["id"])
+            if existing:
+                continue
+            mission = Mission(
+                id=spec["id"],
+                name=spec["name"],
+                description=spec["description"],
+                status=MissionStatus.DRAFT,
+                steps=spec["steps"],
+                target_agent_ids=[],
+                is_predefined=True,
+            )
+            session.add(mission)
+        session.commit()

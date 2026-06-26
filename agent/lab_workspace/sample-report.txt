@@ -1,0 +1,2 @@
+Aligo Mission Ledger C2 - sample lab artifact
+This is a harmless placeholder file used to demonstrate the Directory Audit mission.

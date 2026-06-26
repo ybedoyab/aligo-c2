@@ -1,0 +1,68 @@
+services:
+  blockchain:
+    build:
+      context: ./blockchain
+    container_name: aligo-blockchain
+    command: npx hardhat node --hostname 0.0.0.0
+    ports:
+      - "8545:8545"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8545',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_blockNumber',params:[]})}).then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  server:
+    build:
+      context: ./server
+    container_name: aligo-server
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=sqlite:////data/c2.db
+      - BLOCKCHAIN_RPC_URL=http://blockchain:8545
+    ports:
+      - "8000:8000"
+    volumes:
+      - server-data:/data
+    depends_on:
+      blockchain:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: aligo-frontend
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    ports:
+      - "5173:80"
+    depends_on:
+      - server
+
+  agent-1:
+    build:
+      context: ./agent
+    container_name: aligo-agent-1
+    env_file:
+      - .env
+    environment:
+      - C2_WS_URL=ws://server:8000/ws/agent
+      - AGENT_ID=agent-001
+    depends_on:
+      - server
+
+  agent-2:
+    build:
+      context: ./agent
+    container_name: aligo-agent-2
+    env_file:
+      - .env
+    environment:
+      - C2_WS_URL=ws://server:8000/ws/agent
+      - AGENT_ID=agent-002
+    depends_on:
+      - server
+
+volumes:
+  server-data:

@@ -1,0 +1,40 @@
+{
+  "description": "Sample missions and simulated agents for Aligo Mission Ledger C2 demos. The four missions below mirror the presets seeded by the server (server/app/db/seed.py). You can POST any of these to /api/missions to recreate them as custom missions.",
+  "simulated_agents": ["agent-001", "agent-002", "agent-003"],
+  "missions": [
+    {
+      "name": "Lab Health Check",
+      "description": "Verify each agent is healthy and report basic system info.",
+      "steps": [
+        { "plugin": "health_check", "args": {} },
+        { "plugin": "system_info", "args": {} }
+      ],
+      "target_agent_ids": ["agent-001", "agent-002", "agent-003"]
+    },
+    {
+      "name": "Basic Recon",
+      "description": "Collect safe, local system and network information.",
+      "steps": [
+        { "plugin": "system_info", "args": {} },
+        { "plugin": "network_info", "args": {} }
+      ],
+      "target_agent_ids": ["agent-001"]
+    },
+    {
+      "name": "Directory Audit",
+      "description": "List the contents of each agent's sandboxed lab workspace.",
+      "steps": [{ "plugin": "list_lab_directory", "args": { "path": "." } }],
+      "target_agent_ids": ["agent-001", "agent-002"]
+    },
+    {
+      "name": "Multi-Agent Status",
+      "description": "Echo a ping and confirm health across every selected agent.",
+      "steps": [
+        { "plugin": "echo", "args": { "text": "ping" } },
+        { "plugin": "health_check", "args": {} },
+        { "plugin": "allowed_command", "args": { "command": "whoami" } }
+      ],
+      "target_agent_ids": ["agent-001", "agent-002", "agent-003"]
+    }
+  ]
+}
