@@ -11,13 +11,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session
 
 from app import __version__
-from app.api import nodes, demo, ledger, missions, results, tasks
+from app.api import nodes, demo, evidence, iot, ledger, missions, policies, results, tasks
 from app.blockchain.contract_client import get_contract_client
 from app.core.config import settings
 from app.db.database import engine, init_db
 from app.db.seed import seed_predefined_missions
 from app.schemas.node import NodeRead
-from app.services import node_service
+from app.services import ledger_service, node_service
 from app.websocket import notifier
 from app.websocket.node_socket import node_endpoint
 from app.websocket.operator_socket import operator_endpoint
@@ -48,17 +48,39 @@ async def _heartbeat_monitor() -> None:
             logger.exception("heartbeat monitor error: %s", exc)
 
 
+async def _sync_ledger_with_chain() -> None:
+    """Background: fix stale anchors after Hardhat restart and anchor pending events."""
+    try:
+        # Let the API, dashboard, and nodes finish binding before bulk anchoring.
+        await asyncio.sleep(3)
+        summary = await asyncio.to_thread(_sync_ledger_blocking)
+        logger.info(
+            "Ledger chain sync complete: %d stale reset, %d re-anchored",
+            summary.get("stale_reset", 0),
+            summary.get("re_anchored", 0),
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.exception("ledger chain sync failed: %s", exc)
+
+
+def _sync_ledger_blocking() -> dict[str, int]:
+    with Session(engine) as session:
+        return ledger_service.ensure_chain_sync(session)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     seed_predefined_missions()
     client = get_contract_client()
     logger.info("Ledger status: %s", client.reason)
+    sync_task = asyncio.create_task(_sync_ledger_with_chain())
     monitor = asyncio.create_task(_heartbeat_monitor())
     logger.info("Aligo Mission Ledger C2 server started (v%s)", __version__)
     try:
         yield
     finally:
+        sync_task.cancel()
         monitor.cancel()
 
 
@@ -78,19 +100,24 @@ app.add_middleware(
 )
 
 app.include_router(nodes.router)
+app.include_router(policies.router)
 app.include_router(missions.router)
 app.include_router(tasks.router)
 app.include_router(results.router)
 app.include_router(ledger.router)
+app.include_router(evidence.router)
 app.include_router(demo.router)
+app.include_router(iot.router)
 
 
 @app.get("/health", tags=["meta"])
 def health() -> dict:
+    import os
+
     from app.services import ledger_service
 
     chain = ledger_service.get_chain_status()
-    return {
+    payload = {
         "status": "ok",
         "version": __version__,
         "ledger_enabled": settings.ledger_enabled,
@@ -99,6 +126,10 @@ def health() -> dict:
         "chain_status": chain.status,
         "contract_address": chain.contract_address,
     }
+    nonce = os.environ.get("DEV_STARTUP_NONCE")
+    if nonce:
+        payload["startup_nonce"] = nonce
+    return payload
 
 
 @app.get("/", tags=["meta"])

@@ -20,13 +20,17 @@ import shutil
 import signal
 import socket
 import sqlite3
+import ssl
 import subprocess
 import sys
 import threading
 import time
 import urllib.error
 import urllib.request
+import uuid
 from pathlib import Path
+
+from lab_tls import ensure_lab_certs
 
 ROOT = Path(__file__).resolve().parent
 VENV_DIR = ROOT / "venv"
@@ -43,13 +47,21 @@ URLS = {
     "chain_rpc": "http://localhost:8545",
 }
 
+URLS_TLS = {
+    "dashboard": "https://127.0.0.1:5173",
+    "api": "https://127.0.0.1:8000",
+    "api_docs": "https://127.0.0.1:8000/docs",
+    "health": "https://127.0.0.1:8000/health",
+    "chain_rpc": "http://localhost:8545",
+}
+
 STACK_PORTS: dict[int, str] = {
     8545: "blockchain",
     8000: "backend",
     5173: "frontend",
 }
 
-PROCS: list[subprocess.Popen[str]] = []
+PROCS: list[tuple[str, subprocess.Popen[str]]] = []
 STOPPING = False
 PYTHON: Path  # set in main() after ensure_venv()
 
@@ -109,7 +121,7 @@ def which_or_die(name: str) -> str:
     return path
 
 
-def load_env() -> dict[str, str]:
+def load_env(*, use_tls: bool) -> dict[str, str]:
     env = os.environ.copy()
     if ENV_FILE.is_file():
         for raw in ENV_FILE.read_text(encoding="utf-8").splitlines():
@@ -118,11 +130,28 @@ def load_env() -> dict[str, str]:
                 continue
             key, value = line.split("=", 1)
             env[key.strip()] = value.strip()
-    # Local dev always talks to localhost chain (docker-compose uses blockchain:8545).
     env["BLOCKCHAIN_RPC_URL"] = "http://127.0.0.1:8545"
     env.setdefault("NODE_SHARED_TOKEN", "change-me-lab-token")
-    env.setdefault("C2_WS_URL", "ws://127.0.0.1:8000/ws/node")
+    if use_tls:
+        cert, key = ensure_lab_certs()
+        env["SSL_CERTFILE"] = str(cert)
+        env["SSL_KEYFILE"] = str(key)
+        env["C2_WS_URL"] = "wss://127.0.0.1:8000/ws/node"
+        env["FRONTEND_URL"] = "https://127.0.0.1:5173"
+        env["VITE_DEV_TLS"] = "true"
+        env["VITE_API_URL"] = ""
+    else:
+        env.setdefault("C2_WS_URL", "ws://127.0.0.1:8000/ws/node")
     return env
+
+
+def _http_opener(url: str) -> urllib.request.OpenerDirector:
+    if url.startswith("https:"):
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
+    return urllib.request.build_opener()
 
 
 def ensure_env_file() -> None:
@@ -184,7 +213,8 @@ def install_npm(project_dir: Path, label: str) -> None:
         log("SETUP", f"{label} npm deps OK")
         return
     log("SETUP", f"Installing {label} npm deps…")
-    subprocess.run(["npm", "install", "--silent"], cwd=project_dir, check=True, shell=os.name == "nt")
+    npm = which_or_die("npm")
+    subprocess.run([npm, "install", "--silent"], cwd=project_dir, check=True, shell=False)
     marker.write_text("ok", encoding="utf-8")
     log("SETUP", f"{label} npm deps installed")
 
@@ -226,9 +256,10 @@ def wait_for_rpc(url: str, timeout: float = 90.0) -> bool:
 
 def wait_for_http(url: str, timeout: float = 90.0) -> bool:
     deadline = time.time() + timeout
+    opener = _http_opener(url)
     while time.time() < deadline:
         try:
-            with urllib.request.urlopen(url, timeout=2) as resp:
+            with opener.open(url, timeout=2) as resp:
                 if 200 <= resp.status < 500:
                     return True
         except (urllib.error.URLError, TimeoutError, OSError):
@@ -236,11 +267,82 @@ def wait_for_http(url: str, timeout: float = 90.0) -> bool:
     return False
 
 
-def port_free(port: int) -> bool:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+def _pid_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        result = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return str(pid) in result.stdout
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def ensure_port_free(port: int, label: str) -> None:
+    """Kill listeners and abort startup if a stack port stays busy."""
+    for attempt in range(5):
+        if port_free(port):
+            return
+        for pid in pids_listening_on(port):
+            if pid == os.getpid():
+                continue
+            log("SETUP", f"Stopping {label} on :{port} (PID {pid})")
+            kill_process_tree(pid)
+        if port == 8000:
+            kill_stray_backend_workers()
+        time.sleep(0.8 + attempt * 0.4)
+    busy = [pid for pid in pids_listening_on(port) if _pid_alive(pid)]
+    if port_free(port):
+        return
+    log(
+        "SETUP",
+        f"ERROR: port :{port} ({label}) still in use"
+        + (f" (PIDs: {', '.join(map(str, busy))})" if busy else ""),
+    )
+    shutdown()
+
+
+def wait_for_backend(
+    proc: subprocess.Popen[str],
+    url: str,
+    *,
+    expected_nonce: str,
+    timeout: float = 90.0,
+) -> bool:
+    """Wait until our uvicorn child is listening — ignore stale servers on the same port."""
+    opener = _http_opener(url)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            log("BACK", f"Backend exited with code {proc.returncode} before ready")
+            return False
         try:
-            s.bind(("127.0.0.1", port))
+            with opener.open(url, timeout=2) as resp:
+                if not (200 <= resp.status < 500):
+                    continue
+                body = json.loads(resp.read().decode("utf-8"))
+                if body.get("startup_nonce") != expected_nonce:
+                    continue
+                if proc.poll() is None:
+                    return True
+        except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError):
+            pass
+        time.sleep(0.4)
+    log("BACK", "Backend did not become ready in time")
+    return False
+
+
+def port_free(port: int, host: str = "127.0.0.1") -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind((host, port))
             return True
         except OSError:
             return False
@@ -250,6 +352,29 @@ def pids_listening_on(port: int) -> list[int]:
     """Return PIDs with a LISTEN socket on the given local port."""
     found: set[int] = set()
     if os.name == "nt":
+        ps_script = (
+            f"Get-NetTCPConnection -LocalPort {port} -State Listen "
+            f"-ErrorAction SilentlyContinue | "
+            f"Select-Object -ExpandProperty OwningProcess -Unique"
+        )
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_script],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        for token in result.stdout.split():
+            try:
+                pid = int(token.strip())
+                if pid > 0:
+                    found.add(pid)
+            except ValueError:
+                continue
+        alive = [pid for pid in found if _pid_alive(pid)]
+        if alive:
+            return sorted(alive)
         result = subprocess.run(
             ["netstat", "-ano"],
             capture_output=True,
@@ -284,7 +409,7 @@ def pids_listening_on(port: int) -> list[int]:
                 found.add(int(token.strip()))
             except ValueError:
                 continue
-    return sorted(found)
+    return sorted(pid for pid in found if _pid_alive(pid))
 
 
 def kill_process_tree(pid: int) -> bool:
@@ -303,6 +428,39 @@ def kill_process_tree(pid: int) -> bool:
     if r.returncode != 0:
         subprocess.run(["kill", "-9", str(pid)], capture_output=True, check=False)
     return True
+
+
+def kill_stray_backend_workers() -> None:
+    """Stop leftover uvicorn/FastAPI processes that may keep SQLite open."""
+    my_pid = os.getpid()
+    if os.name == "nt":
+        script = (
+            "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | "
+            "Where-Object { "
+            "$_.CommandLine -match 'uvicorn' -and "
+            "($_.CommandLine -match 'app\\.main' -or $_.CommandLine -match 'app/main') "
+            "} | Select-Object -ExpandProperty ProcessId"
+        )
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", script],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        pids = [int(x) for x in result.stdout.split() if x.strip().isdigit()]
+    else:
+        result = subprocess.run(
+            ["pgrep", "-f", "uvicorn.*app\\.main"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        pids = [int(x) for x in result.stdout.split() if x.strip().isdigit()]
+    for pid in pids:
+        if pid == my_pid:
+            continue
+        log("SETUP", f"Stopping stray backend worker (PID {pid})")
+        kill_process_tree(pid)
 
 
 def kill_stray_node_workers() -> None:
@@ -349,8 +507,11 @@ def free_stack_ports() -> set[int]:
             if kill_process_tree(pid):
                 killed_ports.add(port)
     kill_stray_node_workers()
+    kill_stray_backend_workers()
     if killed_ports:
         time.sleep(1.2)
+    else:
+        time.sleep(0.5)
     busy = [f":{p} ({name})" for p, name in STACK_PORTS.items() if not port_free(p)]
     if busy:
         log("SETUP", f"WARNING: ports still in use after cleanup: {', '.join(busy)}")
@@ -367,6 +528,44 @@ def sqlite_db_path(env: dict[str, str]) -> Path | None:
     if len(raw) > 2 and raw[1] == ":":
         return Path(raw)
     return Path(raw)
+
+
+def sqlite_sidecar_files(db: Path) -> list[Path]:
+    """WAL/SHM files SQLite may leave beside the main database."""
+    return [db, Path(f"{db}-wal"), Path(f"{db}-shm")]
+
+
+def unlink_db_files(db: Path, *, attempts: int = 8) -> bool:
+    """Remove SQLite database and sidecars; retry while another process releases the lock."""
+    targets = sqlite_sidecar_files(db)
+    for attempt in range(attempts):
+        missing = [p for p in targets if p.is_file()]
+        if not missing:
+            return True
+        try:
+            for path in missing:
+                path.unlink(missing_ok=True)
+            return True
+        except PermissionError:
+            if attempt == 0:
+                kill_stray_backend_workers()
+            elif attempt == 1:
+                free_stack_ports()
+            wait = 0.4 + attempt * 0.35
+            log(
+                "SETUP",
+                f"Database locked — waiting {wait:.1f}s before retry "
+                f"({attempt + 1}/{attempts})",
+            )
+            time.sleep(wait)
+        except OSError as exc:
+            log("SETUP", f"Could not remove database ({exc})")
+            return False
+    log(
+        "SETUP",
+        f"ERROR: could not delete {db} — close other dev.py/uvicorn sessions and retry",
+    )
+    return False
 
 
 def ensure_fresh_db(env: dict[str, str]) -> None:
@@ -389,9 +588,21 @@ def ensure_fresh_db(env: dict[str, str]) -> None:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(missions)")}
             if "target_node_ids" not in cols:
                 stale = True
+        if "nodes" in tables:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(nodes)")}
+            if "policy_id" not in cols or "alias" not in cols or "public_key" not in cols:
+                stale = True
+            if "iot_snapshot" not in cols:
+                stale = True
         if "tasks" in tables:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(tasks)")}
             if "node_id" not in cols and "agent_id" in cols:
+                stale = True
+            if "policy_decision" not in cols:
+                stale = True
+        if "missions" in tables:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(missions)")}
+            if "merkle_root" not in cols:
                 stale = True
         conn.close()
     except sqlite3.Error as exc:
@@ -399,7 +610,14 @@ def ensure_fresh_db(env: dict[str, str]) -> None:
         stale = True
     if stale:
         log("SETUP", f"Resetting stale database: {db}")
-        db.unlink(missing_ok=True)
+        kill_stray_backend_workers()
+        time.sleep(0.8)
+        if not unlink_db_files(db):
+            log(
+                "SETUP",
+                "Continuing with existing database — schema migration may fail; "
+                "use --keep-db or stop other stack processes",
+            )
 
 
 def check_ports() -> None:
@@ -413,9 +631,9 @@ def spawn(
     cwd: Path,
     env: dict[str, str] | None = None,
     *,
-    shell: bool | None = None,
+    shell: bool = False,
 ) -> subprocess.Popen[str]:
-    use_shell = shell if shell is not None else os.name == "nt"
+    """Launch a child process. Default shell=False (required for paths with spaces/commas on Windows)."""
     creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
     proc = subprocess.Popen(
         cmd,
@@ -425,10 +643,10 @@ def spawn(
         stderr=subprocess.STDOUT,
         text=True,
         bufsize=1,
-        shell=use_shell,
+        shell=shell,
         creationflags=creationflags,
     )
-    PROCS.append(proc)
+    PROCS.append((tag, proc))
 
     def pump() -> None:
         assert proc.stdout is not None
@@ -441,25 +659,58 @@ def spawn(
     return proc
 
 
+def _rpc_has_contract_bytecode(rpc_url: str, address: str) -> bool:
+    """Return True when bytecode exists at address on the live chain."""
+    try:
+        payload = json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "method": "eth_getCode",
+                "params": [address, "latest"],
+                "id": 1,
+            }
+        ).encode()
+        req = urllib.request.Request(
+            rpc_url,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            result = json.loads(resp.read()).get("result", "0x")
+        return bool(result and result not in ("0x", "0x0") and len(result) > 4)
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError):
+        return False
+
+
 def deploy_contract(env: dict[str, str], force: bool) -> None:
+    rpc = env.get("BLOCKCHAIN_RPC_URL", "http://127.0.0.1:8545")
     if DEPLOYMENT_JSON.is_file() and not force:
         try:
             data = json.loads(DEPLOYMENT_JSON.read_text(encoding="utf-8"))
             addr = data.get("address", "")
-            if addr:
-                log("CHAIN", f"Contract already deployed at {addr} (deployment.json)")
+            if addr and _rpc_has_contract_bytecode(rpc, addr):
+                log(
+                    "CHAIN",
+                    f"Contract already deployed at {addr} (bytecode present on chain)",
+                )
                 return
+            if addr:
+                log(
+                    "CHAIN",
+                    f"No bytecode at {addr} — Hardhat chain was reset; redeploying…",
+                )
         except (json.JSONDecodeError, OSError):
             pass
 
     log("CHAIN", "Deploying ExecutionLedger contract…")
+    npx = which_or_die("npx")
     result = subprocess.run(
-        ["npx", "hardhat", "run", "scripts/deploy.ts", "--network", "localhost"],
+        [npx, "hardhat", "run", "scripts/deploy.ts", "--network", "localhost"],
         cwd=ROOT / "blockchain",
         env=env,
         capture_output=True,
         text=True,
-        shell=os.name == "nt",
+        shell=False,
     )
     if result.returncode != 0:
         log("CHAIN", "Deploy failed:")
@@ -480,14 +731,14 @@ def shutdown(*_args: object) -> None:
         return
     STOPPING = True
     banner("DEV", "Shutting down… (Ctrl+C again to force)")
-    for proc in reversed(PROCS):
+    for _, proc in reversed(PROCS):
         if proc.poll() is None:
             try:
                 proc.terminate()
             except (ProcessLookupError, OSError):
                 pass
     time.sleep(0.8)
-    for proc in PROCS:
+    for _, proc in PROCS:
         if proc.poll() is None:
             proc.kill()
     sys.exit(0)
@@ -501,7 +752,10 @@ def print_urls(node_count: int) -> None:
     print(f"  Health        {URLS['health']}")
     print(f"  Chain RPC     {URLS['chain_rpc']}")
     if node_count > 0:
-        print(f"  Nodes         {node_count} simulated worker(s) connected via WebSocket")
+        transport = "WSS (TLS)" if URLS["api"].startswith("https") else "WebSocket"
+        print(f"  Nodes         {node_count} simulated worker(s) via {transport}")
+    if URLS["dashboard"].startswith("https"):
+        print("  TLS           lab self-signed — accept browser warning on first open")
     print("\n  Press Ctrl+C to stop all services.\n", flush=True)
 
 
@@ -510,7 +764,8 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Start the full Aligo C2 dev stack")
     parser.add_argument("--skip-install", action="store_true", help="skip dependency install")
-    parser.add_argument("--no-nodes", action="store_true", help="do not start simulated nodes")
+    parser.add_argument("--no-iot", action="store_true", help="do not start simulated IoT gateway")
+    parser.add_argument("--no-nodes", action="store_true", help="do not start simulated computer nodes")
     parser.add_argument("--node-count", type=int, default=3, help="simulated nodes (default: 3)")
     parser.add_argument("--redeploy", action="store_true", help="redeploy smart contract")
     parser.add_argument(
@@ -523,17 +778,30 @@ def main() -> None:
         action="store_true",
         help="keep SQLite DB even if schema looks stale",
     )
+    parser.add_argument(
+        "--no-tls",
+        action="store_true",
+        help="use plain HTTP/WS instead of HTTPS/WSS (debug only)",
+    )
     args = parser.parse_args()
 
     signal.signal(signal.SIGINT, shutdown)
     if hasattr(signal, "SIGTERM"):
         signal.signal(signal.SIGTERM, shutdown)
 
+    use_tls = not args.no_tls
+    global URLS
+    if use_tls:
+        URLS = dict(URLS_TLS)
+
     banner("DEV", "Aligo Mission Ledger C2 — starting local stack")
     PYTHON = ensure_venv_python()
     log("SETUP", f"Python: {PYTHON}")
     install_all(args.skip_install)
-    env = venv_env(load_env())
+    if use_tls:
+        cert_path, key_path = ensure_lab_certs()
+        log("SETUP", f"TLS lab cert ready ({cert_path.name})")
+    env = venv_env(load_env(use_tls=use_tls))
     freed_ports: set[int] = set()
     if not args.no_kill:
         freed_ports = free_stack_ports()
@@ -542,9 +810,10 @@ def main() -> None:
 
     # 1) Blockchain
     log("CHAIN", "Starting Hardhat node on :8545…")
+    npx = which_or_die("npx")
     spawn(
         "CHAIN",
-        ["npx", "hardhat", "node", "--hostname", "127.0.0.1"],
+        [npx, "hardhat", "node", "--hostname", "127.0.0.1"],
         ROOT / "blockchain",
         env,
     )
@@ -556,35 +825,40 @@ def main() -> None:
     deploy_contract(env, force=args.redeploy or 8545 in freed_ports)
 
     # 2) Backend
+    ensure_port_free(8000, "backend")
     log("BACK", "Starting FastAPI server on :8000…")
     server_env = env.copy()
     server_env.setdefault("DATABASE_URL", "sqlite:///./c2.db")
-    spawn(
-        "BACK",
-        [
-            str(PYTHON),
-            "-m",
-            "uvicorn",
-            "app.main:app",
-            "--host",
-            "0.0.0.0",
-            "--port",
-            "8000",
-            "--reload",
-        ],
-        ROOT / "server",
-        server_env,
-    )
-    if not wait_for_http(URLS["health"]):
+    startup_nonce = uuid.uuid4().hex
+    server_env["DEV_STARTUP_NONCE"] = startup_nonce
+    back_cmd = [
+        str(PYTHON),
+        "-m",
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000",
+    ]
+    if use_tls:
+        back_cmd.extend(
+            ["--ssl-keyfile", server_env["SSL_KEYFILE"], "--ssl-certfile", server_env["SSL_CERTFILE"]]
+        )
+        log("BACK", "Channel encryption: HTTPS + WSS (lab self-signed)")
+    back_proc = spawn("BACK", back_cmd, ROOT / "server", server_env, shell=False)
+    if not wait_for_backend(back_proc, URLS["health"], expected_nonce=startup_nonce):
         log("BACK", "ERROR: API did not become ready in time")
         shutdown()
     log("BACK", "API ready")
 
     # 3) Frontend
+    ensure_port_free(5173, "frontend")
     log("FRONT", "Starting Vite dev server on :5173…")
+    npm = which_or_die("npm")
     spawn(
         "FRONT",
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", "5173"],
+        [npm, "run", "dev", "--", "--host", "127.0.0.1", "--port", "5173"],
         ROOT / "frontend",
         env,
     )
@@ -604,14 +878,29 @@ def main() -> None:
         )
         time.sleep(1.5)
 
+    if not args.no_iot:
+        log("IOT", "Starting simulated IoT gateway (gateway-sim-001)…")
+        iot_env = env.copy()
+        spawn(
+            "IOT",
+            [str(PYTHON), "iot_gateway.py", "--gateway-id", "gateway-sim-001"],
+            ROOT / "node",
+            iot_env,
+        )
+        time.sleep(1.0)
+
     print_urls(node_count)
 
     try:
         while True:
             time.sleep(1)
-            for proc in PROCS:
-                if proc.poll() is not None:
-                    log("DEV", f"A process exited with code {proc.returncode}. Stopping stack.")
+            for tag, proc in PROCS:
+                code = proc.poll()
+                if code is not None:
+                    log(
+                        "DEV",
+                        f"Process [{tag}] exited with code {code}. Stopping stack.",
+                    )
                     shutdown()
     except KeyboardInterrupt:
         shutdown()

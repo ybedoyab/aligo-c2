@@ -48,5 +48,9 @@ class MissionRead(BaseModel):
     created_at: datetime
     started_at: datetime | None
     completed_at: datetime | None
+    merkle_root: str | None = None
+    merkle_root_tx: str | None = None
+    merkle_root_block: int | None = None
+    merkle_root_status: str | None = None
 
     model_config = {"from_attributes": True}

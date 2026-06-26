@@ -11,12 +11,19 @@ import {
 import { OPERATOR_WS_URL, api, type HealthInfo } from "./api/client";
 import type {
   Node,
+  IoTDevice,
   LedgerEvent,
   Mission,
   Result,
   Task,
   WsMessage,
 } from "./types";
+
+interface IoTTelemetry {
+  node_id: string;
+  snapshot: Record<string, unknown>;
+  devices: IoTDevice[];
+}
 
 interface C2State {
   nodes: Node[];
@@ -26,6 +33,7 @@ interface C2State {
   ledger: LedgerEvent[];
   health: HealthInfo | null;
   wsConnected: boolean;
+  iotTelemetry: IoTTelemetry | null;
   refreshAll: () => Promise<void>;
 }
 
@@ -46,6 +54,7 @@ export function C2Provider({ children }: { children: ReactNode }) {
   const [results, setResults] = useState<Result[]>([]);
   const [ledger, setLedger] = useState<LedgerEvent[]>([]);
   const [health, setHealth] = useState<HealthInfo | null>(null);
+  const [iotTelemetry, setIotTelemetry] = useState<IoTTelemetry | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -94,8 +103,20 @@ export function C2Provider({ children }: { children: ReactNode }) {
           return;
         }
         switch (msg.type) {
-          case "node_update":
-            setNodes((prev) => upsert(prev, msg.data as Node));
+          case "node_update": {
+            const node = msg.data as Node;
+            setNodes((prev) => upsert(prev, node));
+            if (node.iot_devices?.length) {
+              setIotTelemetry({
+                node_id: node.id,
+                snapshot: (node.iot_snapshot as Record<string, unknown>) ?? {},
+                devices: node.iot_devices,
+              });
+            }
+            break;
+          }
+          case "iot_telemetry":
+            setIotTelemetry(msg.data as IoTTelemetry);
             break;
           case "mission_update":
             setMissions((prev) => upsert(prev, msg.data as Mission));
@@ -132,9 +153,10 @@ export function C2Provider({ children }: { children: ReactNode }) {
       ledger,
       health,
       wsConnected,
+      iotTelemetry,
       refreshAll,
     }),
-    [nodes, missions, tasks, results, ledger, health, wsConnected, refreshAll]
+    [nodes, missions, tasks, results, ledger, health, wsConnected, iotTelemetry, refreshAll]
   );
 
   return <C2Context.Provider value={value}>{children}</C2Context.Provider>;

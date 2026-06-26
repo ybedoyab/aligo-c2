@@ -60,6 +60,12 @@ def anchor_event(
     return ledger_service.anchor_event(session, event_id)
 
 
+@router.post("/sync")
+def sync_chain(session: Session = Depends(get_session)) -> dict[str, int]:
+    """Reconcile stale anchors and register pending events on-chain."""
+    return ledger_service.ensure_chain_sync(session)
+
+
 @router.post("/anchor-pending", response_model=list[AnchorResult])
 def anchor_pending(session: Session = Depends(get_session)) -> list[AnchorResult]:
     return ledger_service.anchor_pending_events(session)

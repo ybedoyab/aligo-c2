@@ -30,4 +30,6 @@ class Result(SQLModel, table=True):
     result_metadata: dict[str, Any] = Field(
         default_factory=dict, sa_column=Column("metadata", JSON)
     )
+    node_signature: str = Field(default="", max_length=256)
+    signature_status: str = Field(default="missing", max_length=16)
     created_at: datetime = Field(default_factory=_utcnow)

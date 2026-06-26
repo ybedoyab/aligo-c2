@@ -22,6 +22,7 @@ class ResultIn(BaseModel):
     exit_code: int = 0
     duration_ms: int = 0
     metadata: dict[str, Any] = Field(default_factory=dict)
+    node_signature: str = ""
     timestamp: str | None = None
 
 
@@ -36,6 +37,8 @@ class ResultRead(BaseModel):
     exit_code: int
     duration_ms: int
     result_metadata: dict[str, Any]
+    node_signature: str = ""
+    signature_status: str = "missing"
     created_at: datetime
 
     model_config = {"from_attributes": True}

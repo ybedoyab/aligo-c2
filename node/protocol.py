@@ -18,9 +18,14 @@ def now_iso() -> str:
 
 
 def register_message(
-    node_id: str, hostname: str, os_name: str, username: str, token: str
+    node_id: str,
+    hostname: str,
+    os_name: str,
+    username: str,
+    token: str,
+    public_key: str = "",
 ) -> dict[str, Any]:
-    return {
+    msg: dict[str, Any] = {
         "type": "register",
         "protocol": PROTOCOL_VERSION,
         "node_id": node_id,
@@ -30,10 +35,37 @@ def register_message(
         "token": token,
         "timestamp": now_iso(),
     }
+    if public_key:
+        msg["public_key"] = public_key
+    return msg
 
 
-def heartbeat_message(node_id: str) -> dict[str, Any]:
-    return {"type": "heartbeat", "node_id": node_id, "timestamp": now_iso()}
+def heartbeat_message(node_id: str, iot_snapshot: dict[str, Any] | None = None) -> dict[str, Any]:
+    msg: dict[str, Any] = {"type": "heartbeat", "node_id": node_id, "timestamp": now_iso()}
+    if iot_snapshot:
+        msg["iot_snapshot"] = iot_snapshot
+    return msg
+
+
+def iot_heartbeat_message(node_id: str, iot_snapshot: dict[str, Any]) -> dict[str, Any]:
+    return heartbeat_message(node_id, iot_snapshot=iot_snapshot)
+
+
+def iot_register_message(
+    node_id: str,
+    hostname: str,
+    os_name: str,
+    username: str,
+    token: str,
+    public_key: str = "",
+    *,
+    iot_snapshot: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    msg = register_message(node_id, hostname, os_name, username, token, public_key)
+    msg["node_type"] = "iot_gateway"
+    if iot_snapshot:
+        msg["iot_snapshot"] = iot_snapshot
+    return msg
 
 
 def task_ack_message(task_id: str, node_id: str) -> dict[str, Any]:
@@ -56,8 +88,10 @@ def result_message(
     exit_code: int,
     duration_ms: int,
     metadata: dict[str, Any] | None = None,
+    node_signature: str = "",
+    timestamp: str | None = None,
 ) -> dict[str, Any]:
-    return {
+    msg: dict[str, Any] = {
         "type": "result",
         "task_id": task_id,
         "mission_id": mission_id,
@@ -68,8 +102,11 @@ def result_message(
         "exit_code": exit_code,
         "duration_ms": duration_ms,
         "metadata": metadata or {},
-        "timestamp": now_iso(),
+        "timestamp": timestamp or now_iso(),
     }
+    if node_signature:
+        msg["node_signature"] = node_signature
+    return msg
 
 
 def error_message(node_id: str, error: str) -> dict[str, Any]:

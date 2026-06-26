@@ -36,5 +36,8 @@ Thumbs.db
 
 # Project runtime data
 server/c2.db
-deployment.json
 .dev/
+node/identities/
+demo/reports/*.json
+demo/reports/*.md
+.claude/

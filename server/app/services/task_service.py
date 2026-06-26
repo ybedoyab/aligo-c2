@@ -42,6 +42,28 @@ def create_task(
     return task
 
 
+def set_policy_decision(
+    session: Session, task_id: str, decision: dict
+) -> Task | None:
+    task = session.get(Task, task_id)
+    if task is None:
+        return None
+    task.policy_decision = decision
+    session.add(task)
+    session.commit()
+    session.refresh(task)
+    return task
+
+
+def set_evidence_hash(session: Session, task_id: str, evidence_hash: str) -> None:
+    task = session.get(Task, task_id)
+    if task is None:
+        return
+    task.evidence_hash = evidence_hash
+    session.add(task)
+    session.commit()
+
+
 def mark_sent(session: Session, task_id: str) -> Task | None:
     task = session.get(Task, task_id)
     if task is None:

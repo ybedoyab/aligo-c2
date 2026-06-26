@@ -1,163 +1,54 @@
 # Aligo Mission Ledger C2
 
-> A lab-only, authorized Command & Control (C2) platform with a blockchain-backed
-> **Proof-of-Execution Ledger**. Built for the Aligo Defensores Informáticos hackathon.
+Plataforma de laboratorio para orquestar nodos, misiones y evidencia de ejecución con ledger blockchain. Uso autorizado en entorno controlado únicamente.
 
-## Pitch
-
-> A mission-based laboratory C2 with modular nodes and verifiable, blockchain-anchored
-> auditing. Instead of being a plain remote console, it lets you create reusable missions,
-> run them across multiple nodes, monitor results in real time, and register evidence
-> hashes on a private blockchain to prove the operation was not tampered with.
-
-## Ethical notice (read first)
-
-This project is intended **exclusively** for closed, controlled, and **authorized**
-laboratory environments. It deliberately **does not** implement real malware, evasion,
-stealth, aggressive persistence, antivirus bypass, real lateral movement, exfiltration,
-credential theft, or offensive execution against third parties. Nodes only run a small
-**allowlist of safe plugins** and never expose an arbitrary shell. See
-[`docs/security.md`](docs/security.md) and [`docs/limitations.md`](docs/limitations.md).
-
-## Architecture
-
-```mermaid
-flowchart LR
-  Operator["React Dashboard<br/>(Vite + TS + Tailwind)"] -->|"REST + /ws/operator"| Server
-  Server["FastAPI C2 Server<br/>(REST + WebSockets)"] -->|"/ws/node"| NodeRuntime["Python Node<br/>(asyncio + safe plugins)"]
-  Server -->|SQLModel| DB[("SQLite / PostgreSQL")]
-  Server -->|web3.py| Chain["Hardhat node<br/>ExecutionLedger.sol"]
-```
-
-| Component | Stack | Responsibility |
-|-----------|-------|----------------|
-| Server | Python 3.12, FastAPI, WebSockets, SQLModel | Coordinates nodes, missions, tasks, ledger |
-| Node | Python 3.12, asyncio, websockets | Connects, heartbeats, runs safe plugins |
-| Frontend | React, Vite, TypeScript, Tailwind | Operator dashboard + jury demo |
-| Blockchain | Hardhat, Solidity | On-chain proof-of-execution ledger |
-| Bridge | web3.py | Server ↔ contract integration |
-
-Full details in [`docs/architecture.md`](docs/architecture.md).
-
-## Requirements
+## Requisitos
 
 - Python 3.12+
-- Node.js 20+ and npm
-- (Optional) Docker + Docker Compose
+- Node.js 20+ y npm
 
-## Quick start with Docker Compose
-
-```bash
-cp .env.example .env
-docker compose up --build
-# Then deploy the contract once the blockchain container is healthy:
-docker compose exec blockchain npx hardhat run scripts/deploy.ts --network localhost
-# Copy the printed address into .env (CONTRACT_ADDRESS=...) and restart the server:
-docker compose up -d --no-deps server
-```
-
-- Dashboard: http://localhost:5173
-- API docs (Swagger): http://localhost:8000/docs
-- Hardhat RPC: http://localhost:8545
-
-## Local install (without Docker)
+## Inicio rápido
 
 ```bash
 cp .env.example .env
+python dev.py
 ```
 
-### 1. Blockchain (terminal 1)
+Eso levanta la aplicación completa: blockchain, contrato, API, dashboard, nodos simulados y gateway IoT. El canal operador↔servidor y nodo↔servidor va cifrado con **TLS/WSS** (certificado autofirmado de laboratorio; el navegador pedirá aceptarlo una vez).
 
 ```bash
-cd blockchain
-npm install
-npx hardhat node            # starts a local chain on :8545
+python dev.py --no-tls    # solo depuración: HTTP/WS sin cifrar
 ```
 
-### 2. Deploy the contract (terminal 2)
+| Servicio   | URL                          |
+|------------|------------------------------|
+| Dashboard  | http://localhost:5173        |
+| API        | http://localhost:8000        |
+| API docs   | http://localhost:8000/docs   |
 
-```bash
-cd blockchain
-npx hardhat run scripts/deploy.ts --network localhost
-# prints CONTRACT_ADDRESS -> paste it into .env
-```
+Detener con `Ctrl+C`.
 
-### 3. Server (terminal 3)
+## Guía rápida en la app
 
-```bash
-cd server
-python -m pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-```
+| Tema | Dónde | Documentación |
+|------|-------|---------------|
+| Nodos | **Nodes** → detalle del nodo | [node-registry.md](docs/node-registry.md) |
+| Políticas | **Node Detail**, **Console** | [node-policies.md](docs/node-policies.md) |
+| Misiones y evidencia | **Missions**, modal de evidencia | [task-evidence.md](docs/task-evidence.md) |
+| Exportar informe | **Missions** o **Demo** | [mission-report.md](docs/mission-report.md) |
+| Ledger y verificación | **Ledger**, **Demo → Verify** | [blockchain-ledger.md](docs/blockchain-ledger.md) |
+| Demo de tamper | **Demo → Simulate tamper** | [tamper-demo.md](docs/tamper-demo.md) |
+| Topología | **Topology** | [topology.md](docs/topology.md) |
+| IoT simulado | **IoT Lab**, **Demo** | [iot-simulation.md](docs/iot-simulation.md) |
+| Consola | **Console** | [operator-console.md](docs/operator-console.md) |
+| Script de demo | **Demo** | [demo-script.md](docs/demo-script.md) |
 
-> On Windows PowerShell, set `DATABASE_URL` via `.env`; the Makefile targets assume a
-> Unix-like shell, so run the commands above directly if `make` is unavailable.
+## Documentación general
 
-### 4. Frontend (terminal 4)
+Guía completa del proyecto (arquitectura, stack, flujos, pitch): [`docs/presentacion-general.md`](docs/presentacion-general.md).
 
-```bash
-cd frontend
-npm install
-npm run dev                 # http://localhost:5173
-```
+Más documentación técnica en [`docs/`](docs/): [arquitectura](docs/architecture.md), [protocolo](docs/protocol.md), [seguridad](docs/security.md), [despliegue](docs/deployment.md), [limitaciones](docs/limitations.md).
 
-### 5. Nodes (terminal 5)
+## Aviso
 
-```bash
-cd node
-python -m pip install -r requirements.txt
-python node.py --node-id node-001
-# or launch a simulated fleet:
-python node.py --simulate-count 3
-```
-
-## Running a mission
-
-1. Open the dashboard and confirm nodes show **online** under **Nodes**.
-2. Go to **Missions**, pick a predefined mission (e.g. *Lab Health Check*) or build one.
-3. Select target nodes and start the mission.
-4. Watch tasks move `pending → sent → running → success` and results stream in.
-5. Open **Ledger** to see the chained events; click **Verify** on any event.
-
-The **Demo** page provides large jury-friendly buttons for the whole flow.
-
-## Verifying the ledger
-
-Each important event is serialized to canonical JSON, hashed with SHA-256, chained with
-`previous_hash`, stored in the DB, and anchored on-chain. Verification recomputes the local
-hash and compares it with the value returned by the contract's `verifyEventHash`, showing
-**verified** or **tampered**. See [`docs/blockchain-ledger.md`](docs/blockchain-ledger.md).
-
-## Demo
-
-A 5–7 minute script is in [`docs/demo-script.md`](docs/demo-script.md) and a recording
-script in [`demo/video-script.md`](demo/video-script.md). Sample data lives in
-[`demo/sample-missions.json`](demo/sample-missions.json).
-
-Expected demo flow: start blockchain → deploy contract → start server → start frontend →
-connect 2–3 nodes → see them online → create *Lab Health Check* → run across nodes →
-watch live results → inspect ledger events → verify integrity → show the timeline replay.
-
-## Documentation
-
-- [Architecture](docs/architecture.md)
-- [Protocol](docs/protocol.md)
-- [Security](docs/security.md)
-- [Blockchain Ledger](docs/blockchain-ledger.md)
-- [Task Evidence](docs/task-evidence.md)
-- [Operator Console](docs/operator-console.md)
-- [Deployment](docs/deployment.md)
-- [Demo Script](docs/demo-script.md)
-- [Scoring Strategy](docs/scoring-strategy.md)
-- [Limitations](docs/limitations.md)
-
-## Known limitations
-
-Not for production. Local blockchain is for demonstration only. The shared token is not a
-substitute for real PKI. SQLite is the default store. Plugins are intentionally limited for
-safety. See [`docs/limitations.md`](docs/limitations.md).
-
-## License / use
-
-Authorized laboratory use only. Do not deploy against systems you do not own or are not
-explicitly authorized to test.
+Solo laboratorio autorizado. Plugins seguros en allowlist; sin shell remoto ni capacidades ofensivas. Ver [`docs/security.md`](docs/security.md).

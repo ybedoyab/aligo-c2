@@ -4,9 +4,12 @@ import { useC2 } from "../store";
 const NAV = [
   { to: "/", label: "Dashboard", end: true },
   { to: "/nodes", label: "Nodes" },
+  { to: "/topology", label: "Topology" },
+  { to: "/iot-lab", label: "IoT Lab" },
   { to: "/missions", label: "Missions" },
   { to: "/console", label: "Console" },
   { to: "/ledger", label: "Ledger" },
+  { to: "/evidence-verifier", label: "Verifier" },
   { to: "/demo", label: "Demo" },
 ];
 

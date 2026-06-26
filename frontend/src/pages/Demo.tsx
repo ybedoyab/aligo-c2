@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { TimelineReplay } from "../components/TimelineReplay";
 import { TaskEvidenceModal } from "../components/TaskEvidenceModal";
 import { IntegrityBadge } from "../components/HealthBadge";
 import { useC2 } from "../store";
+import { downloadMissionReport } from "../utils/missionReport";
 
 function BigButton({
   title,
@@ -133,6 +135,18 @@ export function Demo() {
     append(`✓ Opened evidence for ${latest.task_id}`);
   };
 
+  const exportSampleReport = (format: "json" | "markdown") => {
+    const mission = missions.find((m) => m.is_predefined) ?? missions[0];
+    if (!mission) {
+      append("✗ No missions available");
+      return;
+    }
+    run(async () => {
+      await downloadMissionReport(mission.id, format);
+      append(`✓ Exported ${format} report for "${mission.name}"`);
+    }).catch((e) => append(`✗ ${(e as Error).message}`));
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -162,6 +176,85 @@ export function Demo() {
             </li>
           ))}
         </ol>
+      </div>
+
+      <div className="card p-5 border-amber-500/20 bg-amber-500/5">
+        <h2 className="text-sm font-semibold text-white mb-2">Simulated IoT mode</h2>
+        <p className="text-xs text-soc-muted mb-4">
+          Simulated IoT mode demonstrates how Mission Ledger C2 can orchestrate gateways,
+          sensors, and actuators without requiring physical hardware. Actions are executed
+          through a connected software gateway and recorded as verifiable evidence.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <BigButton
+            title="Start IoT Lab Health Check"
+            subtitle="gateway_health · list_devices · snapshot"
+            onClick={() =>
+              run(async () => {
+                const res = await api.startIoTHealthCheck();
+                append(`✓ IoT health check on ${res.targets.join(", ")}`);
+              }).catch((e) => append(`✗ ${(e as Error).message}`))
+            }
+            disabled={busy}
+          />
+          <BigButton
+            title="Run Environmental Snapshot"
+            subtitle="Read all four simulated sensors"
+            onClick={() =>
+              run(async () => {
+                const res = await api.runEnvironmentalSnapshot();
+                append(`✓ Environmental snapshot (${res.tasks.length} tasks)`);
+              }).catch((e) => append(`✗ ${(e as Error).message}`))
+            }
+            disabled={busy}
+          />
+          <BigButton
+            title="Blink simulated LED"
+            subtitle="led_blink on led-001 via gateway"
+            onClick={() =>
+              run(async () => {
+                const res = await api.blinkLed();
+                append(`✓ LED blink task ${res.task.id}`);
+              }).catch((e) => append(`✗ ${(e as Error).message}`))
+            }
+            disabled={busy}
+          />
+          <Link to="/iot-lab" className="card p-6 hover:border-soc-accent transition-colors block">
+            <div className="text-lg font-semibold text-white">Open IoT Lab</div>
+            <div className="text-sm text-soc-muted mt-1">Live circuit, telemetry, and device cards</div>
+          </Link>
+          <BigButton
+            title="Verify latest IoT event"
+            subtitle="Integrity check on newest gateway task result"
+            onClick={() =>
+              run(async () => {
+                const v = await api.verifyLatestIoTEvent();
+                append(`✓ IoT verify ${v.plugin}: ${v.verify_status}`);
+              }).catch((e) => append(`✗ ${(e as Error).message}`))
+            }
+            disabled={busy}
+          />
+          <BigButton
+            title="Export IoT evidence bundle"
+            subtitle="Download recent IoT task evidence JSON"
+            onClick={() =>
+              run(async () => {
+                const bundle = await api.exportIoTEvidence();
+                const blob = new Blob([JSON.stringify(bundle, null, 2)], {
+                  type: "application/json",
+                });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "iot-evidence-bundle.json";
+                a.click();
+                URL.revokeObjectURL(url);
+                append(`✓ Exported ${bundle.count} IoT evidence record(s)`);
+              }).catch((e) => append(`✗ ${(e as Error).message}`))
+            }
+            disabled={busy}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -196,6 +289,31 @@ export function Demo() {
             setShowReplay((s) => !s);
             append(showReplay ? "Timeline replay hidden" : "Timeline replay shown");
           }}
+        />
+        <BigButton
+          title="Export mission report (JSON)"
+          subtitle="Download mission evidence bundle for jury handoff"
+          onClick={() => exportSampleReport("json")}
+          disabled={busy}
+        />
+        <BigButton
+          title="Export mission report (Markdown)"
+          subtitle="Human-readable mission summary with ledger hashes"
+          onClick={() => exportSampleReport("markdown")}
+          disabled={busy}
+        />
+        <BigButton
+          title="Simulate tamper (demo)"
+          subtitle="Controlled lab demo — mutates local ledger copy; Verify shows TAMPERED"
+          onClick={() =>
+            run(async () => {
+              const latest = results.find((r) => r.status === "success");
+              if (!latest) throw new Error("run a successful task first");
+              const r = await api.simulateTamper(latest.task_id);
+              append(`✓ Tamper demo on ${r.task_id}: verify=${r.verify_status}`);
+            }).catch((e) => append(`✗ ${(e as Error).message}`))
+          }
+          disabled={busy}
         />
         <BigButton
           title="Open latest task evidence"

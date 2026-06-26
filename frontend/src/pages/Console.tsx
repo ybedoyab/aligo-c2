@@ -11,13 +11,24 @@ import { formatTime } from "../utils";
 import { StatusBadge } from "../components/HealthBadge";
 import { TaskEvidenceModal } from "../components/TaskEvidenceModal";
 
-const DEFAULT_ARGS: Record<PluginName, string> = {
+const DEFAULT_ARGS: Partial<Record<PluginName, string>> = {
   system_info: "{}",
   health_check: "{}",
   echo: '{"text": "ping"}',
   list_lab_directory: '{"path": "."}',
   network_info: "{}",
   allowed_command: '{"command": "whoami"}',
+  gateway_health: "{}",
+  list_devices: "{}",
+  get_gateway_snapshot: "{}",
+  read_temperature: '{"device_id": "temp-001"}',
+  read_humidity: '{"device_id": "humidity-001"}',
+  read_motion: '{"device_id": "motion-001"}',
+  read_light: '{"device_id": "light-001"}',
+  led_on: '{"device_id": "led-001"}',
+  led_off: '{"device_id": "led-001"}',
+  led_blink: '{"device_id": "led-001", "duration_ms": 2000, "interval_ms": 250}',
+  led_set_brightness: '{"device_id": "led-001", "brightness": 50}',
 };
 
 function parseConsoleCommand(
@@ -63,7 +74,7 @@ export function Console() {
   const { nodes, tasks, refreshAll } = useC2();
   const [target, setTarget] = useState<string>("all");
   const [plugin, setPlugin] = useState<PluginName>("health_check");
-  const [argsText, setArgsText] = useState(DEFAULT_ARGS.health_check);
+  const [argsText, setArgsText] = useState(DEFAULT_ARGS.health_check ?? "{}");
   const [history, setHistory] = useState<ConsoleHistoryEntry[]>([]);
   const [cmdLine, setCmdLine] = useState("");
   const [cmdMsg, setCmdMsg] = useState("");
@@ -77,33 +88,53 @@ export function Console() {
       if (targetIds.length === 0) {
         throw new Error("no target nodes online");
       }
-      for (const nodeId of targetIds) {
-        const entryId = `${Date.now()}-${nodeId}`;
-        setHistory((h) => [
-          {
-            id: entryId,
-            timestamp: new Date().toISOString(),
-            target: nodeId,
-            plugin: pluginName,
-            task_id: "…",
-            status: "dispatching",
-          },
-          ...h,
-        ]);
-        const task = await api.createTask({
-          node_id: nodeId,
-          plugin: pluginName,
-          args,
-        });
-        setHistory((h) =>
-          h.map((row) =>
-            row.id === entryId
-              ? { ...row, task_id: task.id, status: task.status as TaskStatus }
-              : row
-          )
-        );
+      try {
+        for (const nodeId of targetIds) {
+          const entryId = `${Date.now()}-${nodeId}`;
+          setHistory((h) => [
+            {
+              id: entryId,
+              timestamp: new Date().toISOString(),
+              target: nodeId,
+              plugin: pluginName,
+              task_id: "…",
+              status: "dispatching",
+            },
+            ...h,
+          ]);
+          try {
+            const task = await api.createTask({
+              node_id: nodeId,
+              plugin: pluginName,
+              args,
+            });
+            setHistory((h) =>
+              h.map((row) =>
+                row.id === entryId
+                  ? { ...row, task_id: task.id, status: task.status as TaskStatus }
+                  : row
+              )
+            );
+          } catch (e) {
+            const msg = (e as Error).message;
+            if (msg.startsWith("403:")) {
+              setHistory((h) =>
+                h.map((row) =>
+                  row.id === entryId
+                    ? { ...row, status: "blocked_by_policy" as TaskStatus }
+                    : row
+                )
+              );
+            }
+            throw e;
+          }
+        }
+        refreshAll();
+      } catch (e) {
+        const msg = (e as Error).message;
+        if (msg.startsWith("403:")) refreshAll();
+        throw e;
       }
-      refreshAll();
     },
     [refreshAll]
   );
@@ -136,7 +167,7 @@ export function Console() {
       if (parsed.action === "run_plugin") {
         const pluginName = parsed.payload!.plugin as PluginName;
         const tgt = parsed.payload!.target as string;
-        const args = JSON.parse(DEFAULT_ARGS[pluginName]) as Record<string, unknown>;
+        const args = JSON.parse(DEFAULT_ARGS[pluginName] ?? "{}") as Record<string, unknown>;
         const targets =
           tgt === "all" ? onlineNodes.map((a) => a.id) : [tgt];
         await dispatchPlugin(pluginName, args, targets);
@@ -210,7 +241,7 @@ export function Console() {
               onChange={(e) => {
                 const p = e.target.value as PluginName;
                 setPlugin(p);
-                setArgsText(DEFAULT_ARGS[p]);
+                setArgsText(DEFAULT_ARGS[p] ?? "{}");
               }}
             >
               {ALLOWED_PLUGINS.map((p) => (
