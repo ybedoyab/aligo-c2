@@ -27,6 +27,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+import uuid
 from pathlib import Path
 
 from lab_tls import ensure_lab_certs
@@ -60,7 +61,7 @@ STACK_PORTS: dict[int, str] = {
     5173: "frontend",
 }
 
-PROCS: list[subprocess.Popen[str]] = []
+PROCS: list[tuple[str, subprocess.Popen[str]]] = []
 STOPPING = False
 PYTHON: Path  # set in main() after ensure_venv()
 
@@ -212,7 +213,8 @@ def install_npm(project_dir: Path, label: str) -> None:
         log("SETUP", f"{label} npm deps OK")
         return
     log("SETUP", f"Installing {label} npm deps…")
-    subprocess.run(["npm", "install", "--silent"], cwd=project_dir, check=True, shell=os.name == "nt")
+    npm = which_or_die("npm")
+    subprocess.run([npm, "install", "--silent"], cwd=project_dir, check=True, shell=False)
     marker.write_text("ok", encoding="utf-8")
     log("SETUP", f"{label} npm deps installed")
 
@@ -265,11 +267,82 @@ def wait_for_http(url: str, timeout: float = 90.0) -> bool:
     return False
 
 
-def port_free(port: int) -> bool:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+def _pid_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        result = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return str(pid) in result.stdout
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def ensure_port_free(port: int, label: str) -> None:
+    """Kill listeners and abort startup if a stack port stays busy."""
+    for attempt in range(5):
+        if port_free(port):
+            return
+        for pid in pids_listening_on(port):
+            if pid == os.getpid():
+                continue
+            log("SETUP", f"Stopping {label} on :{port} (PID {pid})")
+            kill_process_tree(pid)
+        if port == 8000:
+            kill_stray_backend_workers()
+        time.sleep(0.8 + attempt * 0.4)
+    busy = [pid for pid in pids_listening_on(port) if _pid_alive(pid)]
+    if port_free(port):
+        return
+    log(
+        "SETUP",
+        f"ERROR: port :{port} ({label}) still in use"
+        + (f" (PIDs: {', '.join(map(str, busy))})" if busy else ""),
+    )
+    shutdown()
+
+
+def wait_for_backend(
+    proc: subprocess.Popen[str],
+    url: str,
+    *,
+    expected_nonce: str,
+    timeout: float = 90.0,
+) -> bool:
+    """Wait until our uvicorn child is listening — ignore stale servers on the same port."""
+    opener = _http_opener(url)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            log("BACK", f"Backend exited with code {proc.returncode} before ready")
+            return False
         try:
-            s.bind(("127.0.0.1", port))
+            with opener.open(url, timeout=2) as resp:
+                if not (200 <= resp.status < 500):
+                    continue
+                body = json.loads(resp.read().decode("utf-8"))
+                if body.get("startup_nonce") != expected_nonce:
+                    continue
+                if proc.poll() is None:
+                    return True
+        except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError):
+            pass
+        time.sleep(0.4)
+    log("BACK", "Backend did not become ready in time")
+    return False
+
+
+def port_free(port: int, host: str = "127.0.0.1") -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind((host, port))
             return True
         except OSError:
             return False
@@ -279,6 +352,29 @@ def pids_listening_on(port: int) -> list[int]:
     """Return PIDs with a LISTEN socket on the given local port."""
     found: set[int] = set()
     if os.name == "nt":
+        ps_script = (
+            f"Get-NetTCPConnection -LocalPort {port} -State Listen "
+            f"-ErrorAction SilentlyContinue | "
+            f"Select-Object -ExpandProperty OwningProcess -Unique"
+        )
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_script],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        for token in result.stdout.split():
+            try:
+                pid = int(token.strip())
+                if pid > 0:
+                    found.add(pid)
+            except ValueError:
+                continue
+        alive = [pid for pid in found if _pid_alive(pid)]
+        if alive:
+            return sorted(alive)
         result = subprocess.run(
             ["netstat", "-ano"],
             capture_output=True,
@@ -313,7 +409,7 @@ def pids_listening_on(port: int) -> list[int]:
                 found.add(int(token.strip()))
             except ValueError:
                 continue
-    return sorted(found)
+    return sorted(pid for pid in found if _pid_alive(pid))
 
 
 def kill_process_tree(pid: int) -> bool:
@@ -535,9 +631,9 @@ def spawn(
     cwd: Path,
     env: dict[str, str] | None = None,
     *,
-    shell: bool | None = None,
+    shell: bool = False,
 ) -> subprocess.Popen[str]:
-    use_shell = shell if shell is not None else os.name == "nt"
+    """Launch a child process. Default shell=False (required for paths with spaces/commas on Windows)."""
     creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
     proc = subprocess.Popen(
         cmd,
@@ -547,10 +643,10 @@ def spawn(
         stderr=subprocess.STDOUT,
         text=True,
         bufsize=1,
-        shell=use_shell,
+        shell=shell,
         creationflags=creationflags,
     )
-    PROCS.append(proc)
+    PROCS.append((tag, proc))
 
     def pump() -> None:
         assert proc.stdout is not None
@@ -607,13 +703,14 @@ def deploy_contract(env: dict[str, str], force: bool) -> None:
             pass
 
     log("CHAIN", "Deploying ExecutionLedger contract…")
+    npx = which_or_die("npx")
     result = subprocess.run(
-        ["npx", "hardhat", "run", "scripts/deploy.ts", "--network", "localhost"],
+        [npx, "hardhat", "run", "scripts/deploy.ts", "--network", "localhost"],
         cwd=ROOT / "blockchain",
         env=env,
         capture_output=True,
         text=True,
-        shell=os.name == "nt",
+        shell=False,
     )
     if result.returncode != 0:
         log("CHAIN", "Deploy failed:")
@@ -634,14 +731,14 @@ def shutdown(*_args: object) -> None:
         return
     STOPPING = True
     banner("DEV", "Shutting down… (Ctrl+C again to force)")
-    for proc in reversed(PROCS):
+    for _, proc in reversed(PROCS):
         if proc.poll() is None:
             try:
                 proc.terminate()
             except (ProcessLookupError, OSError):
                 pass
     time.sleep(0.8)
-    for proc in PROCS:
+    for _, proc in PROCS:
         if proc.poll() is None:
             proc.kill()
     sys.exit(0)
@@ -713,9 +810,10 @@ def main() -> None:
 
     # 1) Blockchain
     log("CHAIN", "Starting Hardhat node on :8545…")
+    npx = which_or_die("npx")
     spawn(
         "CHAIN",
-        ["npx", "hardhat", "node", "--hostname", "127.0.0.1"],
+        [npx, "hardhat", "node", "--hostname", "127.0.0.1"],
         ROOT / "blockchain",
         env,
     )
@@ -727,16 +825,19 @@ def main() -> None:
     deploy_contract(env, force=args.redeploy or 8545 in freed_ports)
 
     # 2) Backend
+    ensure_port_free(8000, "backend")
     log("BACK", "Starting FastAPI server on :8000…")
     server_env = env.copy()
     server_env.setdefault("DATABASE_URL", "sqlite:///./c2.db")
+    startup_nonce = uuid.uuid4().hex
+    server_env["DEV_STARTUP_NONCE"] = startup_nonce
     back_cmd = [
         str(PYTHON),
         "-m",
         "uvicorn",
         "app.main:app",
         "--host",
-        "0.0.0.0",
+        "127.0.0.1",
         "--port",
         "8000",
     ]
@@ -746,23 +847,18 @@ def main() -> None:
         )
         log("BACK", "Channel encryption: HTTPS + WSS (lab self-signed)")
     back_proc = spawn("BACK", back_cmd, ROOT / "server", server_env, shell=False)
-    if not wait_for_http(URLS["health"]):
+    if not wait_for_backend(back_proc, URLS["health"], expected_nonce=startup_nonce):
         log("BACK", "ERROR: API did not become ready in time")
-        shutdown()
-    if back_proc.poll() is not None:
-        log(
-            "BACK",
-            "ERROR: backend exited during startup (port :8000 likely still in use). "
-            "Close other dev.py/uvicorn sessions and retry.",
-        )
         shutdown()
     log("BACK", "API ready")
 
     # 3) Frontend
+    ensure_port_free(5173, "frontend")
     log("FRONT", "Starting Vite dev server on :5173…")
+    npm = which_or_die("npm")
     spawn(
         "FRONT",
-        ["npm", "run", "dev", "--", "--host", "127.0.0.1", "--port", "5173"],
+        [npm, "run", "dev", "--", "--host", "127.0.0.1", "--port", "5173"],
         ROOT / "frontend",
         env,
     )
@@ -798,9 +894,13 @@ def main() -> None:
     try:
         while True:
             time.sleep(1)
-            for proc in PROCS:
-                if proc.poll() is not None:
-                    log("DEV", f"A process exited with code {proc.returncode}. Stopping stack.")
+            for tag, proc in PROCS:
+                code = proc.poll()
+                if code is not None:
+                    log(
+                        "DEV",
+                        f"Process [{tag}] exited with code {code}. Stopping stack.",
+                    )
                     shutdown()
     except KeyboardInterrupt:
         shutdown()

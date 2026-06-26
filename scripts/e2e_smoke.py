@@ -7,14 +7,14 @@ import ssl
 import sys
 import time
 import urllib.error
-import urllib.error
 import urllib.request
 from typing import Any
 
 CTX = ssl.create_default_context()
 CTX.check_hostname = False
 CTX.verify_mode = ssl.CERT_NONE
-BASE = os.environ.get("ALIGO_API_BASE", "https://127.0.0.1:8000")
+DEFAULT_BASE = "https://127.0.0.1:8000"
+BASE = os.environ.get("ALIGO_API_BASE", DEFAULT_BASE)
 
 FAILURES: list[str] = []
 
@@ -58,14 +58,38 @@ def wait_for(predicate, timeout: float = 60, interval: float = 1.0) -> bool:
     return False
 
 
+def fetch_health(base: str, timeout: float = 90.0) -> dict[str, Any]:
+    """Poll /health until the dev stack is accepting connections."""
+    global BASE
+    deadline = time.time() + timeout
+    last_err: Exception | None = None
+    while time.time() < deadline:
+        BASE = base
+        try:
+            return get("/health")
+        except urllib.error.URLError as exc:
+            last_err = exc
+            time.sleep(1.0)
+    raise urllib.error.URLError(last_err or "health check timed out")
+
+
 def main() -> int:
     section("Health & chain")
     try:
-        health = get("/health")
-    except urllib.error.URLError as exc:
-        fail("health", str(exc))
-        print("\nStart the stack first: python dev.py")
-        return 1
+        health = fetch_health(BASE)
+    except urllib.error.URLError:
+        if BASE != DEFAULT_BASE:
+            try:
+                health = fetch_health(DEFAULT_BASE, timeout=15)
+                print(f"  note: ALIGO_API_BASE={BASE!r} unreachable; using {DEFAULT_BASE}")
+            except urllib.error.URLError as exc:
+                fail("health", str(exc))
+                print("\nStart the stack first: python dev.py")
+                return 1
+        else:
+            fail("health", "timed out waiting for /health")
+            print("\nStart the stack first: python dev.py")
+            return 1
 
     if health.get("status") != "ok":
         fail("health status", str(health))

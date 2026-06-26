@@ -51,6 +51,8 @@ async def _heartbeat_monitor() -> None:
 async def _sync_ledger_with_chain() -> None:
     """Background: fix stale anchors after Hardhat restart and anchor pending events."""
     try:
+        # Let the API, dashboard, and nodes finish binding before bulk anchoring.
+        await asyncio.sleep(3)
         summary = await asyncio.to_thread(_sync_ledger_blocking)
         logger.info(
             "Ledger chain sync complete: %d stale reset, %d re-anchored",
@@ -110,10 +112,12 @@ app.include_router(iot.router)
 
 @app.get("/health", tags=["meta"])
 def health() -> dict:
+    import os
+
     from app.services import ledger_service
 
     chain = ledger_service.get_chain_status()
-    return {
+    payload = {
         "status": "ok",
         "version": __version__,
         "ledger_enabled": settings.ledger_enabled,
@@ -122,6 +126,10 @@ def health() -> dict:
         "chain_status": chain.status,
         "contract_address": chain.contract_address,
     }
+    nonce = os.environ.get("DEV_STARTUP_NONCE")
+    if nonce:
+        payload["startup_nonce"] = nonce
+    return payload
 
 
 @app.get("/", tags=["meta"])
