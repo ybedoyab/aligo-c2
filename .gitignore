@@ -7,12 +7,18 @@ venv/
 .env
 *.db
 *.sqlite3
+uv.lock
 
 # Node
 node_modules/
 dist/
 .vite/
 *.log
+
+# pnpm
+pnpm-lock.yaml
+pnpm-workspace.yaml
+.pnpm-store/
 
 # Hardhat / blockchain
 blockchain/artifacts/
@@ -24,6 +30,9 @@ blockchain/typechain-types/
 Thumbs.db
 .idea/
 .vscode/
+
+# Claude
+**/CLAUDE.md
 
 # Project runtime data
 server/c2.db
