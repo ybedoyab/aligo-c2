@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,9 @@ from app.core.hashing import to_bytes32
 logger = logging.getLogger("aligo.blockchain")
 
 _ABI_PATH = Path(__file__).parent / "contract_abi.json"
+
+# Serialize on-chain txs so concurrent anchors never reuse the same nonce.
+_tx_lock = threading.Lock()
 
 
 class ContractClient:
@@ -83,38 +87,42 @@ class ContractClient:
         """Anchor an event on-chain. Returns {tx_hash, block_number} or None on failure."""
         if not self.available:
             return None
-        try:
-            web3 = self._web3
-            fn = self._contract.functions.registerEvent(
-                event_id,
-                mission_id,
-                task_id,
-                node_id,
-                event_type,
-                to_bytes32(payload_hash),
-                to_bytes32(previous_hash),
-                int(timestamp_unix),
-            )
-            nonce = web3.eth.get_transaction_count(self._account.address)
-            tx = fn.build_transaction(
-                {
-                    "from": self._account.address,
-                    "nonce": nonce,
-                    "gas": 1_500_000,
-                    "gasPrice": web3.eth.gas_price,
-                    "chainId": web3.eth.chain_id,
+        with _tx_lock:
+            try:
+                web3 = self._web3
+                fn = self._contract.functions.registerEvent(
+                    event_id,
+                    mission_id,
+                    task_id,
+                    node_id,
+                    event_type,
+                    to_bytes32(payload_hash),
+                    to_bytes32(previous_hash),
+                    int(timestamp_unix),
+                )
+                # 'pending' includes txs already submitted but not yet mined.
+                nonce = web3.eth.get_transaction_count(
+                    self._account.address, "pending"
+                )
+                tx = fn.build_transaction(
+                    {
+                        "from": self._account.address,
+                        "nonce": nonce,
+                        "gas": 1_500_000,
+                        "gasPrice": web3.eth.gas_price,
+                        "chainId": web3.eth.chain_id,
+                    }
+                )
+                signed = self._account.sign_transaction(tx)
+                tx_hash = web3.eth.send_raw_transaction(signed.raw_transaction)
+                receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
+                return {
+                    "tx_hash": tx_hash.hex(),
+                    "block_number": int(receipt["blockNumber"]),
                 }
-            )
-            signed = self._account.sign_transaction(tx)
-            tx_hash = web3.eth.send_raw_transaction(signed.raw_transaction)
-            receipt = web3.eth.wait_for_transaction_receipt(tx_hash, timeout=30)
-            return {
-                "tx_hash": tx_hash.hex(),
-                "block_number": int(receipt["blockNumber"]),
-            }
-        except Exception as exc:  # pragma: no cover - network/runtime dependent
-            logger.warning("Failed to anchor event %s on-chain: %s", event_id, exc)
-            return None
+            except Exception as exc:  # pragma: no cover - network/runtime dependent
+                logger.warning("Failed to anchor event %s on-chain: %s", event_id, exc)
+                return None
 
     def get_onchain_hash(self, event_id: str) -> str | None:
         """Return the on-chain payload hash (hex) for an event, or None."""
