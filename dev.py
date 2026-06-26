@@ -389,6 +389,10 @@ def ensure_fresh_db(env: dict[str, str]) -> None:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(missions)")}
             if "target_node_ids" not in cols:
                 stale = True
+        if "nodes" in tables:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(nodes)")}
+            if "policy_id" not in cols or "alias" not in cols:
+                stale = True
         if "tasks" in tables:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(tasks)")}
             if "node_id" not in cols and "agent_id" in cols:

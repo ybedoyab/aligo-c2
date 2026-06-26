@@ -117,9 +117,22 @@ python node.py --simulate-count 3
 2. Go to **Missions**, pick a predefined mission (e.g. *Lab Health Check*) or build one.
 3. Select target nodes and start the mission.
 4. Watch tasks move `pending → sent → running → success` and results stream in.
-5. Open **Ledger** to see the chained events; click **Verify** on any event.
+5. Click any result → **Task Execution Evidence** for the full audit packet.
+6. Open **Ledger** to see chained events; click **Verify** on any event.
+7. Use **Topology** for a jury-friendly architecture view.
 
-The **Demo** page provides large jury-friendly buttons for the whole flow.
+The **Demo** page provides large jury-friendly buttons for the whole flow including policy demos, tamper detection, and mission report export.
+
+## Jury demo highlights
+
+| Topic | Where | Doc |
+|-------|-------|-----|
+| Explain nodes | **Nodes** → Node Detail (alias, policy, health breakdown) | [node-registry.md](docs/node-registry.md) |
+| Policy enforcement | Set `basic_safe`, run `network_info` → **blocked_by_policy** | [node-policies.md](docs/node-policies.md) |
+| Export mission report | **Missions** or **Demo** → Export JSON/MD | [mission-report.md](docs/mission-report.md) |
+| Ledger verification | **Demo → Verify latest** or Evidence modal | [task-evidence.md](docs/task-evidence.md) |
+| Tamper detection | **Demo → Simulate tamper** then Verify → **tampered** | [tamper-demo.md](docs/tamper-demo.md) |
+| Topology | **Topology** page or Dashboard fleet strip | [topology.md](docs/topology.md) |
 
 ## Verifying the ledger
 
@@ -144,7 +157,13 @@ watch live results → inspect ledger events → verify integrity → show the t
 - [Protocol](docs/protocol.md)
 - [Security](docs/security.md)
 - [Blockchain Ledger](docs/blockchain-ledger.md)
+- [Node Registry](docs/node-registry.md)
+- [Node Policies](docs/node-policies.md)
 - [Task Evidence](docs/task-evidence.md)
+- [Mission Report Export](docs/mission-report.md)
+- [Tamper Demo](docs/tamper-demo.md)
+- [Topology](docs/topology.md)
+- [AI Analyst Node](docs/ai-analyst-node.md)
 - [Operator Console](docs/operator-console.md)
 - [Deployment](docs/deployment.md)
 - [Demo Script](docs/demo-script.md)

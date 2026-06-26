@@ -4,6 +4,7 @@ import { TimelineReplay } from "../components/TimelineReplay";
 import { TaskEvidenceModal } from "../components/TaskEvidenceModal";
 import { IntegrityBadge } from "../components/HealthBadge";
 import { useC2 } from "../store";
+import { downloadMissionReport } from "../utils/missionReport";
 
 function BigButton({
   title,
@@ -133,6 +134,18 @@ export function Demo() {
     append(`✓ Opened evidence for ${latest.task_id}`);
   };
 
+  const exportSampleReport = (format: "json" | "markdown") => {
+    const mission = missions.find((m) => m.is_predefined) ?? missions[0];
+    if (!mission) {
+      append("✗ No missions available");
+      return;
+    }
+    run(async () => {
+      await downloadMissionReport(mission.id, format);
+      append(`✓ Exported ${format} report for "${mission.name}"`);
+    }).catch((e) => append(`✗ ${(e as Error).message}`));
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -196,6 +209,31 @@ export function Demo() {
             setShowReplay((s) => !s);
             append(showReplay ? "Timeline replay hidden" : "Timeline replay shown");
           }}
+        />
+        <BigButton
+          title="Export mission report (JSON)"
+          subtitle="Download mission evidence bundle for jury handoff"
+          onClick={() => exportSampleReport("json")}
+          disabled={busy}
+        />
+        <BigButton
+          title="Export mission report (Markdown)"
+          subtitle="Human-readable mission summary with ledger hashes"
+          onClick={() => exportSampleReport("markdown")}
+          disabled={busy}
+        />
+        <BigButton
+          title="Simulate tamper (demo)"
+          subtitle="Controlled lab demo — mutates local ledger copy; Verify shows TAMPERED"
+          onClick={() =>
+            run(async () => {
+              const latest = results.find((r) => r.status === "success");
+              if (!latest) throw new Error("run a successful task first");
+              const r = await api.simulateTamper(latest.task_id);
+              append(`✓ Tamper demo on ${r.task_id}: verify=${r.verify_status}`);
+            }).catch((e) => append(`✗ ${(e as Error).message}`))
+          }
+          disabled={busy}
         />
         <BigButton
           title="Open latest task evidence"

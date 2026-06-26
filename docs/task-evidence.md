@@ -1,64 +1,50 @@
 # Task Execution Evidence
 
-Every task in Aligo Mission Ledger C2 can be inspected as verifiable **execution evidence**:
-what plugin ran, with what arguments, on which node, and whether the result hash matches
-the blockchain record.
+Every task and result row opens the **Task Execution Evidence** modal — a single pane for operators and jurors to inspect what ran and how it was recorded.
 
-## Opening evidence
+## Fields shown
 
-| Location | How |
-|----------|-----|
-| **Nodes → detail** | Click node card → task history row |
-| **Results console** | Click any result row |
-| **Task activity** | Click any task row |
-| **Console history** | **View evidence** button |
-| **Demo page** | **Open latest task evidence** |
-| **API** | `GET /api/tasks/{task_id}/evidence` |
-
-## Modal fields
-
-The **Task Execution Evidence** modal shows:
-
-| Field | Source |
-|-------|--------|
-| `task_id`, `node_id`, `mission_id` | Task record |
-| `plugin`, `args` | Task record |
-| `status`, `stdout`, `stderr`, `exit_code`, `duration_ms` | Result record |
-| `local_hash`, `previous_hash` | Ledger event (`TASK_RESULT` or `TASK_FAILED`) |
-| `blockchain_tx_hash`, `on_chain_status` | Ledger event on-chain metadata |
-| `integrity_status` | Computed: verified / pending_chain / tampered / local_only |
+| Section | Fields |
+|---------|--------|
+| Mission | `mission_name`, `mission_id` |
+| Execution | `node_id`, `plugin`, `args` (JSON), `status` |
+| Output | `stdout`, `stderr`, `exit_code`, `duration_ms` |
+| Timestamps | `created_at`, `sent_at`, `completed_at` |
+| Integrity | `local_hash`, `previous_hash`, `integrity_status` |
+| On-chain | `on_chain_status`, `block_number`, `tx_hash`, `ledger_event_id` |
 
 ## Actions
 
-- **Verify integrity** — calls `POST /api/ledger/events/{event_id}/verify`
-- **Copy result JSON** — copies structured evidence to clipboard
-- **Open ledger event** — navigates to Ledger page with event highlighted
-- **Close**
+| Button | Behavior |
+|--------|----------|
+| **Verify integrity** | Recomputes local hash and compares with on-chain record |
+| **Copy evidence JSON** | Full evidence payload to clipboard |
+| **Export evidence JSON** | Download `.json` file |
+| **Open ledger event** | Navigate to Ledger page filtered to the event |
 
-## Node detail page
+## Where to open evidence
 
-`GET /api/nodes/{node_id}/detail` returns:
+- **Missions** — task activity + results console
+- **Console** — command history → View evidence
+- **Demo** — Open latest task evidence
+- **Ledger** — linked from evidence modal
 
-- Node profile (hostname, OS, status, health, last heartbeat)
-- Stats: total / successful / failed tasks
-- Task history with plugin, args, duration, exit code, ledger event id, integrity status
+## Integrity statuses
 
-## How integrity is determined
+| Badge | Meaning |
+|-------|---------|
+| `verified` | Local hash matches on-chain |
+| `pending_chain` | Anchored locally, not yet confirmed on-chain |
+| `tampered` | Local record no longer matches chain (see tamper demo) |
+| `local_only` | Chain disabled or event not anchored |
 
-1. Find the primary ledger event for the task (`TASK_RESULT` > `TASK_FAILED` > `TASK_SENT`).
-2. If ledger disabled → `local_only`.
-3. If not anchored → `pending_chain` (local hash chain still valid).
-4. If anchored → run verify: recompute canonical JSON hash, compare with on-chain
-   `verifyEventHash`.
+## API
 
-## Example workflow (jury)
+```
+GET /api/tasks/{task_id}/evidence
+POST /api/ledger/{event_id}/verify
+```
 
-1. Run *Lab Health Check* on three nodes.
-2. Open evidence for one `health_check` task — show plugin name and JSON stdout.
-3. Point at `local_hash` and **Verify** → `verified` when contract is configured.
-4. Explain: changing the stored stdout would break the hash chain and show **tampered**.
+## Demo script line
 
-## Related docs
-
-- [blockchain-ledger.md](blockchain-ledger.md) — hash algorithm and on-chain storage
-- [operator-console.md](operator-console.md) — dispatching tasks safely
+> "This modal is our proof-of-execution packet: exactly which plugin ran, with what arguments, what it returned, and the SHA-256 hash chained to prior events and anchored on our private ledger."

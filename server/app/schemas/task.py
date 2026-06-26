@@ -61,6 +61,7 @@ class TaskEvidenceRead(BaseModel):
     previous_hash: str | None = None
     ledger_event_id: str | None = None
     blockchain_tx_hash: str | None = None
+    block_number: int | None = None
     on_chain_status: OnChainStatus | None = None
     integrity_status: IntegrityStatus = IntegrityStatus.UNKNOWN
     result_id: str | None = None

@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session
 
 from app import __version__
-from app.api import nodes, demo, ledger, missions, results, tasks
+from app.api import nodes, demo, ledger, missions, policies, results, tasks
 from app.blockchain.contract_client import get_contract_client
 from app.core.config import settings
 from app.db.database import engine, init_db
@@ -78,6 +78,7 @@ app.add_middleware(
 )
 
 app.include_router(nodes.router)
+app.include_router(policies.router)
 app.include_router(missions.router)
 app.include_router(tasks.router)
 app.include_router(results.router)

@@ -12,6 +12,12 @@ class NodeStatus(StrEnum):
     ERROR = "error"
 
 
+class NodeType(StrEnum):
+    REAL = "real"
+    SIMULATED = "simulated"
+    AI_ANALYST = "ai_analyst"
+
+
 class MissionStatus(StrEnum):
     DRAFT = "draft"
     RUNNING = "running"
@@ -27,6 +33,7 @@ class TaskStatus(StrEnum):
     SUCCESS = "success"
     FAILED = "failed"
     TIMEOUT = "timeout"
+    BLOCKED_BY_POLICY = "blocked_by_policy"
 
 
 class EventType(StrEnum):
@@ -39,6 +46,7 @@ class EventType(StrEnum):
     MISSION_COMPLETED = "MISSION_COMPLETED"
     NODE_DISCONNECTED = "NODE_DISCONNECTED"
     NODE_RECONNECTED = "NODE_RECONNECTED"
+    PLUGIN_BLOCKED = "PLUGIN_BLOCKED"
 
 
 class OnChainStatus(StrEnum):

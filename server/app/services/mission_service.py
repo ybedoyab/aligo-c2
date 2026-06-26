@@ -7,11 +7,12 @@ from datetime import datetime, timezone
 
 from sqlmodel import Session, select
 
-from app.core.enums import MissionStatus, TaskStatus
+from app.core.enums import EventType, MissionStatus, TaskStatus
 from app.models.mission import Mission
+from app.models.node import Node
 from app.models.task import Task
 from app.schemas.mission import MissionCreate
-from app.services import task_service
+from app.services import ledger_service, policy_service, task_service
 
 
 def _utcnow() -> datetime:
@@ -62,14 +63,33 @@ def start_mission(
 
     tasks: list[Task] = []
     for node_id in target_node_ids:
+        node = session.get(Node, node_id)
         for step in mission.steps:
+            plugin = step["plugin"]
+            args = step.get("args", {})
             task = task_service.create_task(
                 session,
                 mission_id=mission.id,
                 node_id=node_id,
-                plugin=step["plugin"],
-                args=step.get("args", {}),
+                plugin=plugin,
+                args=args,
             )
+            if node is None or not node.enabled or not policy_service.plugin_allowed(
+                node, plugin
+            ):
+                task_service.set_status(session, task.id, TaskStatus.BLOCKED_BY_POLICY)
+                ledger_service.record_event(
+                    session,
+                    event_type=EventType.PLUGIN_BLOCKED,
+                    mission_id=mission.id,
+                    task_id=task.id,
+                    node_id=node_id,
+                    data={
+                        "plugin": plugin,
+                        "policy_id": node.policy_id if node else "unknown",
+                        "reason": "plugin not allowed by node policy",
+                    },
+                )
             tasks.append(task)
     session.refresh(mission)
     return mission, tasks
@@ -85,7 +105,7 @@ def recompute_status(session: Session, mission_id: str) -> Mission | None:
     if not tasks:
         return None
 
-    terminal = {TaskStatus.SUCCESS, TaskStatus.FAILED, TaskStatus.TIMEOUT}
+    terminal = {TaskStatus.SUCCESS, TaskStatus.FAILED, TaskStatus.TIMEOUT, TaskStatus.BLOCKED_BY_POLICY}
     if not all(t.status in terminal for t in tasks):
         # Still running.
         return None

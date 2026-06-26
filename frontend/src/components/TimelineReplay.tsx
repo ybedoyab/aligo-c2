@@ -13,6 +13,7 @@ const EVENT_META: Record<EventType, { label: string; dot: string }> = {
   TASK_RESULT: { label: "Result received", dot: "bg-soc-ok" },
   TASK_FAILED: { label: "Task failed", dot: "bg-soc-err" },
   MISSION_COMPLETED: { label: "Mission completed", dot: "bg-soc-ok" },
+  PLUGIN_BLOCKED: { label: "Plugin blocked by policy", dot: "bg-soc-warn" },
 };
 
 function isAnchored(status: string) {

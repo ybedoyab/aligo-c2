@@ -1,6 +1,8 @@
 import type {
   Node,
   NodeDetail,
+  NodePolicy,
+  NodeUpdate,
   AnchorResult,
   ChainStatusInfo,
   LedgerEvent,
@@ -28,12 +30,16 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   if (!res.ok) {
-    let detail = res.statusText;
+    let detail: string;
     try {
       const body = await res.json();
-      detail = body.detail ?? JSON.stringify(body);
+      const d = body.detail;
+      if (typeof d === "string") detail = d;
+      else if (d && typeof d === "object" && "message" in d)
+        detail = String((d as { message: string }).message);
+      else detail = JSON.stringify(d ?? body);
     } catch {
-      /* ignore */
+      detail = res.statusText;
     }
     throw new Error(`${res.status}: ${detail}`);
   }
@@ -54,9 +60,32 @@ export interface HealthInfo {
 export const api = {
   health: () => http<HealthInfo>("/health"),
 
-  listNodes: () => http<Node[]>("/api/nodes"),
+  listNodes: (opts?: {
+    status?: string;
+    os?: string;
+    group?: string;
+    tag?: string;
+    min_health?: number;
+  }) => {
+    const params = new URLSearchParams();
+    if (opts?.status) params.set("status", opts.status);
+    if (opts?.os) params.set("os", opts.os);
+    if (opts?.group) params.set("group", opts.group);
+    if (opts?.tag) params.set("tag", opts.tag);
+    if (opts?.min_health != null) params.set("min_health", String(opts.min_health));
+    const q = params.toString();
+    return http<Node[]>(`/api/nodes${q ? `?${q}` : ""}`);
+  },
   getNode: (id: string) => http<Node>(`/api/nodes/${id}`),
+  updateNode: (id: string, patch: NodeUpdate) =>
+    http<Node>(`/api/nodes/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    }),
+  deleteNode: (id: string) =>
+    http<void>(`/api/nodes/${id}`, { method: "DELETE" }),
   getNodeDetail: (id: string) => http<NodeDetail>(`/api/nodes/${id}/detail`),
+  listPolicies: () => http<NodePolicy[]>("/api/policies"),
 
   listMissions: () => http<Mission[]>("/api/missions"),
   getMission: (id: string) => http<Mission>(`/api/missions/${id}`),
@@ -115,4 +144,33 @@ export const api = {
       "/api/demo/start-sample-mission",
       { method: "POST" }
     ),
+
+  simulateTamper: (task_id: string) =>
+    http<{
+      task_id: string;
+      ledger_event_id: string;
+      verify_status: string;
+      verified: boolean;
+      detail: string;
+    }>("/api/demo/simulate-tamper", {
+      method: "POST",
+      body: JSON.stringify({ task_id }),
+    }),
+
+  exportMissionReport: async (
+    missionId: string,
+    format: "json" | "markdown" = "json",
+    save = false
+  ) => {
+    const params = new URLSearchParams({ format, save: String(save) });
+    const res = await fetch(`${API_URL}/api/missions/${missionId}/report?${params}`);
+    if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+    if (format === "markdown") {
+      return { markdown: await res.text() };
+    }
+    return (await res.json()) as {
+      report: Record<string, unknown>;
+      saved_paths?: Record<string, string>;
+    };
+  },
 };

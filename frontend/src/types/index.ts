@@ -1,4 +1,5 @@
 export type NodeStatus = "online" | "offline" | "warning" | "error";
+export type NodeType = "real" | "simulated" | "ai_analyst";
 export type MissionStatus =
   | "draft"
   | "running"
@@ -11,7 +12,8 @@ export type TaskStatus =
   | "running"
   | "success"
   | "failed"
-  | "timeout";
+  | "timeout"
+  | "blocked_by_policy";
 
 export type OnChainStatus =
   | "disabled"
@@ -42,6 +44,43 @@ export interface Node {
   first_seen: string;
   last_seen: string;
   registered_at: string;
+  alias: string;
+  tags: string[];
+  group: string;
+  description: string;
+  enabled: boolean;
+  trusted: boolean;
+  node_type: NodeType;
+  policy_id: string;
+}
+
+export interface NodeUpdate {
+  alias?: string;
+  tags?: string[];
+  group?: string;
+  description?: string;
+  enabled?: boolean;
+  trusted?: boolean;
+  node_type?: NodeType;
+  policy_id?: string;
+}
+
+export interface NodePolicy {
+  id: string;
+  name: string;
+  description: string;
+  plugins: string[];
+}
+
+export interface NodeHealthFactor {
+  label: string;
+  score: number;
+  detail: string;
+}
+
+export interface NodeHealthExplanation {
+  total_score: number;
+  factors: NodeHealthFactor[];
 }
 
 export interface NodeStats {
@@ -68,6 +107,7 @@ export interface NodeDetail {
   node: Node;
   stats: NodeStats;
   last_heartbeat: string;
+  health: NodeHealthExplanation;
   tasks: NodeTaskHistoryRow[];
 }
 
@@ -120,6 +160,7 @@ export interface TaskEvidence {
   previous_hash: string | null;
   ledger_event_id: string | null;
   blockchain_tx_hash: string | null;
+  block_number: number | null;
   on_chain_status: OnChainStatus | null;
   integrity_status: IntegrityStatus;
   result_id: string | null;
@@ -148,7 +189,8 @@ export type EventType =
   | "TASK_FAILED"
   | "MISSION_COMPLETED"
   | "NODE_DISCONNECTED"
-  | "NODE_RECONNECTED";
+  | "NODE_RECONNECTED"
+  | "PLUGIN_BLOCKED";
 
 export interface LedgerEvent {
   id: string;

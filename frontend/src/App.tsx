@@ -7,6 +7,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { Demo } from "./pages/Demo";
 import { Ledger } from "./pages/Ledger";
 import { Missions } from "./pages/Missions";
+import { Topology } from "./pages/Topology";
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="nodes" element={<Nodes />} />
         <Route path="nodes/:nodeId" element={<NodeDetailPage />} />
+        <Route path="topology" element={<Topology />} />
         <Route path="missions" element={<Missions />} />
         <Route path="console" element={<Console />} />
         <Route path="ledger" element={<Ledger />} />

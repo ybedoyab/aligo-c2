@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlmodel import Session
 
 from app.core.enums import EventType
 from app.db.database import get_session
 from app.schemas.mission import MissionCreate, MissionRead, MissionStart
 from app.schemas.task import TaskRead
-from app.services import mission_service
+from app.services import mission_service, report_service
 from app.websocket import dispatch, notifier
 from app.websocket.manager import manager
 
@@ -88,3 +89,26 @@ async def start_mission(
         "mission": mission_view.model_dump(mode="json"),
         "tasks": [t.model_dump(mode="json") for t in task_views],
     }
+
+
+@router.get("/{mission_id}/report")
+def export_mission_report(
+    mission_id: str,
+    format: str = Query(default="json", pattern="^(json|markdown)$"),
+    save: bool = Query(default=False),
+    session: Session = Depends(get_session),
+):
+    """Export a mission report as JSON or Markdown. Optionally persist under demo/reports/."""
+    report = report_service.build_mission_report(session, mission_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="mission not found")
+    saved = report_service.save_report_files(session, mission_id) if save else None
+    if format == "markdown":
+        body = report_service.report_to_markdown(report)
+        return PlainTextResponse(
+            content=body,
+            media_type="text/markdown",
+            headers={"X-Report-Saved": str(saved) if saved else ""},
+        )
+    payload = {"report": report, "saved_paths": saved}
+    return JSONResponse(content=payload)

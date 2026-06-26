@@ -45,6 +45,7 @@ def build_task_evidence(session: Session, task_id: str) -> TaskEvidenceRead | No
         previous_hash=ledger_event.previous_hash if ledger_event else None,
         ledger_event_id=ledger_event.id if ledger_event else None,
         blockchain_tx_hash=ledger_event.tx_hash if ledger_event else None,
+        block_number=ledger_event.block_number if ledger_event else None,
         on_chain_status=ledger_event.onchain_status if ledger_event else None,
         integrity_status=integrity,
         result_id=result.id if result else None,
@@ -90,5 +91,6 @@ def get_node_detail(session: Session, node_id: str) -> NodeDetailRead | None:
             failed_tasks=failed,
         ),
         last_heartbeat=node.last_seen,
+        health=node_service.explain_health(session, node),
         tasks=[_task_history_row(session, t) for t in tasks],
     )

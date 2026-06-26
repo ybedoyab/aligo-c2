@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import type { TaskEvidence, VerifyResult } from "../types";
-import { shortHash } from "../utils";
+import { formatTime, shortHash } from "../utils";
 import { IntegrityBadge, StatusBadge } from "./HealthBadge";
 
 function prettyJson(raw: string): string {
@@ -41,6 +41,16 @@ export function TaskEvidenceModal({ taskId, onClose }: Props) {
 
   if (!taskId) return null;
 
+  const fullJson = () =>
+    JSON.stringify(
+      {
+        ...evidence,
+        verify_result: verify,
+      },
+      null,
+      2
+    );
+
   const runVerify = async () => {
     if (!evidence?.ledger_event_id) return;
     setBusy(true);
@@ -55,18 +65,18 @@ export function TaskEvidenceModal({ taskId, onClose }: Props) {
 
   const copyJson = () => {
     if (!evidence) return;
-    const payload = {
-      task_id: evidence.task_id,
-      plugin: evidence.plugin,
-      args: evidence.args,
-      status: evidence.status,
-      stdout: evidence.stdout,
-      stderr: evidence.stderr,
-      exit_code: evidence.exit_code,
-      duration_ms: evidence.duration_ms,
-      local_hash: evidence.local_hash,
-    };
-    void navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+    void navigator.clipboard.writeText(fullJson());
+  };
+
+  const exportJson = () => {
+    if (!evidence) return;
+    const blob = new Blob([fullJson()], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `evidence-${evidence.task_id}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -104,15 +114,23 @@ export function TaskEvidenceModal({ taskId, onClose }: Props) {
 
             <div className="grid grid-cols-2 gap-3 text-xs">
               <Field label="Mission" value={evidence.mission_name ?? evidence.mission_id} />
+              <Field label="Mission ID" value={evidence.mission_id} mono />
               <Field label="Node" value={evidence.node_id} mono />
               <Field label="Exit code" value={String(evidence.exit_code ?? "—")} />
               <Field label="Duration" value={`${evidence.duration_ms ?? "—"} ms`} />
-              <Field label="Local hash" value={shortHash(evidence.local_hash, 12)} mono />
-              <Field label="Previous hash" value={shortHash(evidence.previous_hash, 12)} mono />
-              <Field label="On-chain" value={evidence.on_chain_status ?? "—"} />
+              <Field label="Created" value={formatTime(evidence.created_at)} />
+              <Field label="Sent" value={evidence.sent_at ? formatTime(evidence.sent_at) : "—"} />
+              <Field
+                label="Completed"
+                value={evidence.completed_at ? formatTime(evidence.completed_at) : "—"}
+              />
+              <Field label="Local hash" value={shortHash(evidence.local_hash, 16)} mono />
+              <Field label="Previous hash" value={shortHash(evidence.previous_hash, 16)} mono />
+              <Field label="On-chain status" value={evidence.on_chain_status ?? "—"} />
+              <Field label="Block" value={String(evidence.block_number ?? "—")} />
               <Field
                 label="TX hash"
-                value={evidence.blockchain_tx_hash ? shortHash(evidence.blockchain_tx_hash, 8) : "—"}
+                value={evidence.blockchain_tx_hash ? shortHash(evidence.blockchain_tx_hash, 12) : "—"}
                 mono
               />
             </div>
@@ -157,7 +175,10 @@ export function TaskEvidenceModal({ taskId, onClose }: Props) {
                 {busy ? "Verifying…" : "Verify integrity"}
               </button>
               <button className="btn-ghost text-xs" onClick={copyJson}>
-                Copy result JSON
+                Copy evidence JSON
+              </button>
+              <button className="btn-ghost text-xs" onClick={exportJson}>
+                Export evidence JSON
               </button>
               {evidence.ledger_event_id && (
                 <button
@@ -190,7 +211,7 @@ function Field({
   return (
     <div>
       <div className="text-soc-muted">{label}</div>
-      <div className={`text-white ${mono ? "font-mono text-[11px]" : ""}`}>{value}</div>
+      <div className={`text-white break-all ${mono ? "font-mono text-[11px]" : ""}`}>{value}</div>
     </div>
   );
 }

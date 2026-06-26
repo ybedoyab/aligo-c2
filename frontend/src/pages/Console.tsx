@@ -77,33 +77,53 @@ export function Console() {
       if (targetIds.length === 0) {
         throw new Error("no target nodes online");
       }
-      for (const nodeId of targetIds) {
-        const entryId = `${Date.now()}-${nodeId}`;
-        setHistory((h) => [
-          {
-            id: entryId,
-            timestamp: new Date().toISOString(),
-            target: nodeId,
-            plugin: pluginName,
-            task_id: "…",
-            status: "dispatching",
-          },
-          ...h,
-        ]);
-        const task = await api.createTask({
-          node_id: nodeId,
-          plugin: pluginName,
-          args,
-        });
-        setHistory((h) =>
-          h.map((row) =>
-            row.id === entryId
-              ? { ...row, task_id: task.id, status: task.status as TaskStatus }
-              : row
-          )
-        );
+      try {
+        for (const nodeId of targetIds) {
+          const entryId = `${Date.now()}-${nodeId}`;
+          setHistory((h) => [
+            {
+              id: entryId,
+              timestamp: new Date().toISOString(),
+              target: nodeId,
+              plugin: pluginName,
+              task_id: "…",
+              status: "dispatching",
+            },
+            ...h,
+          ]);
+          try {
+            const task = await api.createTask({
+              node_id: nodeId,
+              plugin: pluginName,
+              args,
+            });
+            setHistory((h) =>
+              h.map((row) =>
+                row.id === entryId
+                  ? { ...row, task_id: task.id, status: task.status as TaskStatus }
+                  : row
+              )
+            );
+          } catch (e) {
+            const msg = (e as Error).message;
+            if (msg.startsWith("403:")) {
+              setHistory((h) =>
+                h.map((row) =>
+                  row.id === entryId
+                    ? { ...row, status: "blocked_by_policy" as TaskStatus }
+                    : row
+                )
+              );
+            }
+            throw e;
+          }
+        }
+        refreshAll();
+      } catch (e) {
+        const msg = (e as Error).message;
+        if (msg.startsWith("403:")) refreshAll();
+        throw e;
       }
-      refreshAll();
     },
     [refreshAll]
   );

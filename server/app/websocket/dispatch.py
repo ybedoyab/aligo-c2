@@ -27,6 +27,8 @@ async def dispatch_task(task_id: str) -> bool:
         task = task_service.get_task(session, task_id)
         if task is None:
             return False
+        if task.status == TaskStatus.BLOCKED_BY_POLICY:
+            return False
         task_view = TaskRead.model_validate(task).model_dump(mode="json")
 
     node_id = task_view["node_id"]

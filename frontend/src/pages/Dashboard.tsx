@@ -1,4 +1,6 @@
+import { Link } from "react-router-dom";
 import { TimelineReplay } from "../components/TimelineReplay";
+import { HealthBadge, StatusBadge } from "../components/HealthBadge";
 import { useC2 } from "../store";
 
 function Metric({
@@ -45,6 +47,44 @@ export function Dashboard() {
         <Metric label="Tasks completed" value={completedTasks} accent="text-soc-ok" />
         <Metric label="Tasks failed" value={failedTasks} accent="text-soc-err" />
         <Metric label="Ledger events" value={ledger.length} accent="text-soc-accent2" />
+      </div>
+
+      <div className="card p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-white">Fleet topology</h3>
+          <Link to="/topology" className="text-xs text-soc-accent hover:underline">
+            Open full topology →
+          </Link>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <span className="rounded-lg border border-soc-border px-3 py-2 text-white">Operator UI</span>
+          <span className="text-soc-muted">→</span>
+          <span className="rounded-lg border border-soc-border px-3 py-2 text-white">C2 Server</span>
+          <span className="text-soc-muted">→</span>
+          <span className="rounded-lg border border-soc-accent/40 px-3 py-2 text-soc-accent">
+            {online} node(s) online
+          </span>
+          <span className="text-soc-muted">→</span>
+          <span className="rounded-lg border border-soc-border px-3 py-2 text-white">Blockchain ledger</span>
+        </div>
+        {nodes.filter((n) => n.status === "online").length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {nodes
+              .filter((n) => n.status === "online")
+              .slice(0, 6)
+              .map((n) => (
+                <Link
+                  key={n.id}
+                  to={`/nodes/${n.id}`}
+                  className="flex items-center gap-2 rounded-lg border border-soc-border px-3 py-2 text-xs hover:border-soc-accent"
+                >
+                  <StatusBadge status={n.status} />
+                  <span className="font-mono text-white">{n.alias || n.id}</span>
+                  <HealthBadge score={n.health_score} />
+                </Link>
+              ))}
+          </div>
+        )}
       </div>
 
       <TimelineReplay events={ledger} missions={missions} tasks={tasks} />

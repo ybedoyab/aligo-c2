@@ -7,6 +7,29 @@ import { TaskEvidenceModal } from "../components/TaskEvidenceModal";
 import { StatusBadge } from "../components/HealthBadge";
 import { useC2 } from "../store";
 import type { Mission } from "../types";
+import { downloadMissionReport } from "../utils/missionReport";
+
+function ExportButtons({ missionId }: { missionId: string }) {
+  const [busy, setBusy] = useState(false);
+  const run = async (format: "json" | "markdown") => {
+    setBusy(true);
+    try {
+      await downloadMissionReport(missionId, format);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex gap-1 ml-2">
+      <button className="btn-ghost text-xs" disabled={busy} onClick={() => run("json")}>
+        Export JSON
+      </button>
+      <button className="btn-ghost text-xs" disabled={busy} onClick={() => run("markdown")}>
+        Export MD
+      </button>
+    </div>
+  );
+}
 
 function MissionRow({
   mission,
@@ -55,9 +78,12 @@ function MissionRow({
         </div>
         {error && <div className="text-xs text-soc-err mt-1">{error}</div>}
       </div>
-      <button className="btn-primary text-xs" onClick={start} disabled={busy}>
-        {busy ? "Starting…" : "Run"}
-      </button>
+      <div className="flex items-center gap-2 shrink-0">
+        <button className="btn-primary text-xs" onClick={start} disabled={busy}>
+          {busy ? "Starting…" : "Run"}
+        </button>
+        <ExportButtons missionId={mission.id} />
+      </div>
     </div>
   );
 }

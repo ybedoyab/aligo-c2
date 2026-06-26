@@ -21,6 +21,15 @@ export function TaskConsole({
           </div>
         ) : (
           <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase text-soc-muted border-b border-soc-border">
+                <th className="px-4 py-2">Plugin</th>
+                <th className="px-4 py-2">Node</th>
+                <th className="px-4 py-2">Mission</th>
+                <th className="px-4 py-2">Status</th>
+                <th className="px-4 py-2 text-right">Evidence</th>
+              </tr>
+            </thead>
             <tbody>
               {tasks.map((t) => (
                 <tr
@@ -32,13 +41,25 @@ export function TaskConsole({
                 >
                   <td className="px-4 py-2 font-mono text-xs text-soc-accent">{t.plugin}</td>
                   <td className="px-4 py-2 font-mono text-xs text-white">{t.node_id}</td>
+                  <td className="px-4 py-2 font-mono text-xs text-soc-muted truncate max-w-[120px]">
+                    {t.mission_id}
+                  </td>
                   <td className="px-4 py-2">
                     <StatusBadge status={t.status} />
                   </td>
-                  <td className="px-4 py-2 text-right text-xs text-soc-muted">
+                  <td className="px-4 py-2 text-right text-xs">
                     {formatTime(t.sent_at ?? t.created_at)}
                     {onOpenEvidence && (
-                      <span className="ml-2 text-soc-accent">evidence</span>
+                      <button
+                        type="button"
+                        className="ml-2 text-soc-accent hover:underline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenEvidence(t.id);
+                        }}
+                      >
+                        View evidence
+                      </button>
                     )}
                   </td>
                 </tr>

@@ -35,6 +35,7 @@ function ResultRow({
           <StatusBadge status={result.status} />
           <span className="font-mono text-xs text-soc-accent">{plugin}</span>
           <span className="font-mono text-xs text-white">{result.node_id}</span>
+          <span className="text-xs text-soc-muted font-mono">{result.mission_id}</span>
           <span className="text-xs text-soc-muted">{result.task_id}</span>
         </div>
         <div className="flex items-center gap-3 text-xs text-soc-muted shrink-0">
