@@ -40,6 +40,27 @@ NODE_POLICIES: dict[str, NodePolicy] = {
             }
         ),
     ),
+    "iot_demo_policy": NodePolicy(
+        id="iot_demo_policy",
+        name="IoT Demo Policy",
+        description="Safe simulated IoT gateway plugins for lab sensors and actuators.",
+        plugins=frozenset(
+            {
+                "gateway_health",
+                "list_devices",
+                "get_device_info",
+                "get_gateway_snapshot",
+                "read_temperature",
+                "read_humidity",
+                "read_motion",
+                "read_light",
+                "led_on",
+                "led_off",
+                "led_blink",
+                "led_set_brightness",
+            }
+        ),
+    ),
 }
 
 DEFAULT_POLICY_ID = "basic_safe"

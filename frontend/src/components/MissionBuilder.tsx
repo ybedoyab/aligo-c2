@@ -12,13 +12,24 @@ interface Props {
   onChanged: () => void;
 }
 
-const DEFAULT_ARGS: Record<PluginName, string> = {
+const DEFAULT_ARGS: Partial<Record<PluginName, string>> = {
   system_info: "{}",
   health_check: "{}",
   echo: '{"text": "ping"}',
   list_lab_directory: '{"path": "."}',
   network_info: "{}",
   allowed_command: '{"command": "whoami"}',
+  gateway_health: "{}",
+  list_devices: "{}",
+  get_gateway_snapshot: "{}",
+  read_temperature: '{"device_id": "temp-001"}',
+  read_humidity: '{"device_id": "humidity-001"}',
+  read_motion: '{"device_id": "motion-001"}',
+  read_light: '{"device_id": "light-001"}',
+  led_on: '{"device_id": "led-001"}',
+  led_off: '{"device_id": "led-001"}',
+  led_blink: '{"device_id": "led-001", "duration_ms": 2000, "interval_ms": 250}',
+  led_set_brightness: '{"device_id": "led-001", "brightness": 50}',
 };
 
 interface DraftStep {
@@ -119,7 +130,7 @@ export function MissionBuilder({ nodes, onChanged }: Props) {
               onChange={(e) =>
                 updateStep(idx, {
                   plugin: e.target.value as PluginName,
-                  argsText: DEFAULT_ARGS[e.target.value as PluginName],
+                  argsText: DEFAULT_ARGS[e.target.value as PluginName] ?? "{}",
                 })
               }
             >

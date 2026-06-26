@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import type { TaskEvidence, VerifyResult } from "../types";
+import type { EvidenceBundle, TaskEvidence, VerifyResult } from "../types";
 import { formatTime, shortHash } from "../utils";
 import { IntegrityBadge, StatusBadge } from "./HealthBadge";
 
@@ -22,6 +22,7 @@ interface Props {
 export function TaskEvidenceModal({ taskId, onClose }: Props) {
   const navigate = useNavigate();
   const [evidence, setEvidence] = useState<TaskEvidence | null>(null);
+  const [bundle, setBundle] = useState<EvidenceBundle | null>(null);
   const [verify, setVerify] = useState<VerifyResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -29,6 +30,7 @@ export function TaskEvidenceModal({ taskId, onClose }: Props) {
   useEffect(() => {
     if (!taskId) {
       setEvidence(null);
+      setBundle(null);
       return;
     }
     setError("");
@@ -37,19 +39,15 @@ export function TaskEvidenceModal({ taskId, onClose }: Props) {
       .getTaskEvidence(taskId)
       .then(setEvidence)
       .catch((e) => setError((e as Error).message));
+    api
+      .getEvidenceBundle(taskId)
+      .then(setBundle)
+      .catch(() => setBundle(null));
   }, [taskId]);
 
   if (!taskId) return null;
 
-  const fullJson = () =>
-    JSON.stringify(
-      {
-        ...evidence,
-        verify_result: verify,
-      },
-      null,
-      2
-    );
+  const fullJson = () => JSON.stringify(bundle ?? evidence, null, 2);
 
   const runVerify = async () => {
     if (!evidence?.ledger_event_id) return;
@@ -64,17 +62,15 @@ export function TaskEvidenceModal({ taskId, onClose }: Props) {
   };
 
   const copyJson = () => {
-    if (!evidence) return;
     void navigator.clipboard.writeText(fullJson());
   };
 
   const exportJson = () => {
-    if (!evidence) return;
     const blob = new Blob([fullJson()], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `evidence-${evidence.task_id}.json`;
+    a.download = `evidence-${taskId}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -108,24 +104,45 @@ export function TaskEvidenceModal({ taskId, onClose }: Props) {
             <div className="flex flex-wrap gap-2 items-center">
               <StatusBadge status={evidence.status} />
               <IntegrityBadge status={evidence.integrity_status} />
+              {evidence.signature_status && (
+                <StatusBadge status={evidence.signature_status} />
+              )}
+              {evidence.merkle_proof_status && (
+                <span className="text-xs text-soc-muted">
+                  merkle: {evidence.merkle_proof_status}
+                </span>
+              )}
               <span className="font-mono text-soc-accent">{evidence.plugin}</span>
               <span className="text-soc-muted">on {evidence.node_id}</span>
             </div>
 
+            {evidence.iot_summary && (
+              <div className="border border-amber-500/30 rounded-lg p-4 bg-amber-500/5 space-y-2">
+                <div className="text-xs font-semibold text-amber-200 uppercase tracking-wide">
+                  IoT evidence summary
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <Field label="Gateway" value={evidence.iot_summary.gateway} mono />
+                  <Field label="Subdevice" value={evidence.iot_summary.subdevice ?? "—"} mono />
+                  <Field label="Action" value={evidence.iot_summary.physical_style_action} />
+                  <Field
+                    label="Simulated"
+                    value={evidence.iot_summary.simulated_execution ? "yes" : "no"}
+                  />
+                  <Field label="Evidence class" value={evidence.evidence_class ?? "iot_action"} />
+                  <Field label="Node type" value={evidence.node_type ?? "iot_gateway"} />
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3 text-xs">
               <Field label="Mission" value={evidence.mission_name ?? evidence.mission_id} />
-              <Field label="Mission ID" value={evidence.mission_id} mono />
-              <Field label="Node" value={evidence.node_id} mono />
-              <Field label="Exit code" value={String(evidence.exit_code ?? "—")} />
-              <Field label="Duration" value={`${evidence.duration_ms ?? "—"} ms`} />
-              <Field label="Created" value={formatTime(evidence.created_at)} />
-              <Field label="Sent" value={evidence.sent_at ? formatTime(evidence.sent_at) : "—"} />
-              <Field
-                label="Completed"
-                value={evidence.completed_at ? formatTime(evidence.completed_at) : "—"}
-              />
+              <Field label="Node fingerprint" value={evidence.node_fingerprint ?? "—"} mono />
+              <Field label="Signature" value={shortHash(evidence.node_signature, 16)} mono />
+              <Field label="Signature status" value={evidence.signature_status ?? "—"} />
+              <Field label="Mission Merkle root" value={shortHash(evidence.mission_merkle_root, 16)} mono />
+              <Field label="Evidence hash" value={shortHash(evidence.evidence_hash, 16)} mono />
               <Field label="Local hash" value={shortHash(evidence.local_hash, 16)} mono />
-              <Field label="Previous hash" value={shortHash(evidence.previous_hash, 16)} mono />
               <Field label="On-chain status" value={evidence.on_chain_status ?? "—"} />
               <Field label="Block" value={String(evidence.block_number ?? "—")} />
               <Field
@@ -134,6 +151,33 @@ export function TaskEvidenceModal({ taskId, onClose }: Props) {
                 mono
               />
             </div>
+
+            {evidence.policy_decision && (
+              <div>
+                <div className="text-xs text-soc-muted mb-1">Policy decision</div>
+                <pre className="bg-soc-bg border border-soc-border rounded-lg p-3 text-xs font-mono overflow-x-auto">
+                  {JSON.stringify(evidence.policy_decision, null, 2)}
+                </pre>
+              </div>
+            )}
+
+            {evidence.chain_of_custody && evidence.chain_of_custody.length > 0 && (
+              <div>
+                <div className="text-xs text-soc-muted mb-2">Chain of custody</div>
+                <ol className="space-y-2 border-l border-soc-border ml-2 pl-4">
+                  {evidence.chain_of_custody.map((s) => (
+                    <li key={s.step} className="text-xs">
+                      <span className="text-white">{s.step}. {s.label}</span>
+                      <span className="text-soc-muted ml-2">{s.status}</span>
+                      {s.timestamp && (
+                        <span className="text-soc-muted ml-2">{formatTime(s.timestamp)}</span>
+                      )}
+                      {s.detail && <div className="text-soc-muted font-mono">{s.detail}</div>}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
 
             <div>
               <div className="text-xs text-soc-muted mb-1">Arguments</div>
@@ -151,18 +195,21 @@ export function TaskEvidenceModal({ taskId, onClose }: Props) {
               </div>
             )}
 
-            {evidence.stderr && (
-              <div>
-                <div className="text-xs text-soc-muted mb-1">stderr</div>
-                <pre className="bg-soc-bg border border-soc-err/40 rounded-lg p-3 text-xs font-mono text-soc-err">
-                  {evidence.stderr}
-                </pre>
-              </div>
-            )}
-
             {verify && (
-              <div className="text-xs text-soc-muted border border-soc-border rounded-lg p-3">
-                Verify: <IntegrityBadge status={verify.status} /> — {verify.detail}
+              <div className="text-xs text-soc-muted border border-soc-border rounded-lg p-3 space-y-2">
+                <div>
+                  Verify: <IntegrityBadge status={verify.status} /> — {verify.detail}
+                </div>
+                {verify.diff && verify.diff.length > 0 && (
+                  <div>
+                    <div className="text-soc-err font-medium mb-1">Tamper diff</div>
+                    {verify.diff.map((d) => (
+                      <div key={d.field} className="font-mono text-[11px] mb-1">
+                        <span className="text-soc-accent">{d.field}</span>: anchored vs current
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -179,6 +226,15 @@ export function TaskEvidenceModal({ taskId, onClose }: Props) {
               </button>
               <button className="btn-ghost text-xs" onClick={exportJson}>
                 Export evidence JSON
+              </button>
+              <button
+                className="btn-ghost text-xs"
+                onClick={() => {
+                  onClose();
+                  navigate("/evidence-verifier");
+                }}
+              >
+                Open verifier
               </button>
               {evidence.ledger_event_id && (
                 <button

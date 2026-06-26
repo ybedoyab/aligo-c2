@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 import threading
 import uuid
@@ -140,6 +141,7 @@ def record_event(
         event.tx_hash = anchor["tx_hash"]
         event.block_number = anchor["block_number"]
         event.onchain_status = OnChainStatus.ANCHORED
+        event.anchored_snapshot = copy.deepcopy(event.payload)
         session.add(event)
         session.commit()
         session.refresh(event)
@@ -201,6 +203,21 @@ def verify_event(session: Session, event_id: str) -> LedgerVerifyResult | None:
             "Stored hash does not match the on-chain hash.",
         )
 
+    diff: list[dict[str, str]] = []
+    if event.anchored_snapshot and not local_match:
+        orig = event.anchored_snapshot.get("data") or {}
+        cur = event.payload.get("data") or {}
+        keys = set(orig) | set(cur)
+        for key in sorted(keys):
+            if orig.get(key) != cur.get(key):
+                diff.append(
+                    {
+                        "field": key,
+                        "original": str(orig.get(key))[:500],
+                        "current": str(cur.get(key))[:500],
+                    }
+                )
+
     return LedgerVerifyResult(
         event_id=event_id,
         local_hash=event.payload_hash,
@@ -211,6 +228,7 @@ def verify_event(session: Session, event_id: str) -> LedgerVerifyResult | None:
         verified=verified,
         status=status,
         detail=detail,
+        diff=diff,
     )
 
 
@@ -369,6 +387,7 @@ def anchor_event(session: Session, event_id: str) -> AnchorResult:
     event.tx_hash = anchor["tx_hash"]
     event.block_number = anchor["block_number"]
     event.onchain_status = OnChainStatus.ANCHORED
+    event.anchored_snapshot = copy.deepcopy(event.payload)
     session.add(event)
     session.commit()
     session.refresh(event)

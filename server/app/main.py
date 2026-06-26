@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session
 
 from app import __version__
-from app.api import nodes, demo, ledger, missions, policies, results, tasks
+from app.api import nodes, demo, evidence, iot, ledger, missions, policies, results, tasks
 from app.blockchain.contract_client import get_contract_client
 from app.core.config import settings
 from app.db.database import engine, init_db
@@ -83,7 +83,9 @@ app.include_router(missions.router)
 app.include_router(tasks.router)
 app.include_router(results.router)
 app.include_router(ledger.router)
+app.include_router(evidence.router)
 app.include_router(demo.router)
+app.include_router(iot.router)
 
 
 @app.get("/health", tags=["meta"])

@@ -5,9 +5,13 @@ import type {
   NodeUpdate,
   AnchorResult,
   ChainStatusInfo,
+  EvidenceBundle,
+  EvidenceVerifyResult,
   LedgerEvent,
   LedgerStats,
+  IoTLabState,
   Mission,
+  MissionDryRun,
   MissionStep,
   Result,
   Task,
@@ -114,6 +118,18 @@ export const api = {
   },
   getTaskEvidence: (taskId: string) =>
     http<TaskEvidence>(`/api/tasks/${taskId}/evidence`),
+  getEvidenceBundle: (taskId: string) =>
+    http<EvidenceBundle>(`/api/tasks/${taskId}/evidence/bundle`),
+  verifyEvidenceBundle: (bundle: Record<string, unknown>) =>
+    http<EvidenceVerifyResult>("/api/evidence/verify", {
+      method: "POST",
+      body: JSON.stringify({ bundle }),
+    }),
+  dryRunMission: (missionId: string, target_node_ids?: string[]) =>
+    http<MissionDryRun>(`/api/missions/${missionId}/dry-run`, {
+      method: "POST",
+      body: JSON.stringify({ target_node_ids: target_node_ids ?? null }),
+    }),
   createTask: (payload: {
     node_id: string;
     plugin: string;
@@ -152,10 +168,54 @@ export const api = {
       verify_status: string;
       verified: boolean;
       detail: string;
+      diff?: Array<{ field: string; original: string; current: string }>;
     }>("/api/demo/simulate-tamper", {
       method: "POST",
       body: JSON.stringify({ task_id }),
     }),
+
+  getIoTLab: () => http<IoTLabState>("/api/iot/lab"),
+
+  runIoTAction: (payload: {
+    plugin: string;
+    args?: Record<string, unknown>;
+    gateway_id?: string;
+  }) =>
+    http<Task>("/api/iot/actions", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  startIoTHealthCheck: () =>
+    http<{ mission: Mission; tasks: Task[]; targets: string[] }>(
+      "/api/demo/start-iot-health-check",
+      { method: "POST" }
+    ),
+
+  runEnvironmentalSnapshot: () =>
+    http<{ mission: Mission; tasks: Task[]; targets: string[] }>(
+      "/api/demo/run-environmental-snapshot",
+      { method: "POST" }
+    ),
+
+  blinkLed: () =>
+    http<{ task: Task }>("/api/demo/blink-led", { method: "POST" }),
+
+  verifyLatestIoTEvent: () =>
+    http<{
+      task_id: string;
+      plugin: string;
+      device_id?: string;
+      ledger_event_id: string;
+      verify_status: string;
+      verified: boolean;
+      detail: string;
+    }>("/api/demo/verify-latest-iot-event", { method: "POST" }),
+
+  exportIoTEvidence: () =>
+    http<{ gateway: string; count: number; evidence: EvidenceBundle[] }>(
+      "/api/demo/export-iot-evidence"
+    ),
 
   exportMissionReport: async (
     missionId: string,

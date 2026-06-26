@@ -33,3 +33,7 @@ class Mission(SQLModel, table=True):
     created_at: datetime = Field(default_factory=_utcnow)
     started_at: datetime | None = Field(default=None)
     completed_at: datetime | None = Field(default=None)
+    merkle_root: str | None = Field(default=None, max_length=64)
+    merkle_root_tx: str | None = Field(default=None)
+    merkle_root_block: int | None = Field(default=None)
+    merkle_root_status: str | None = Field(default=None, max_length=32)

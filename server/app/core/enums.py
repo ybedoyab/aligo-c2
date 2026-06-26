@@ -15,6 +15,10 @@ class NodeStatus(StrEnum):
 class NodeType(StrEnum):
     REAL = "real"
     SIMULATED = "simulated"
+    COMPUTER_NODE = "computer_node"
+    IOT_GATEWAY = "iot_gateway"
+    IOT_SENSOR = "iot_sensor"
+    IOT_ACTUATOR = "iot_actuator"
     AI_ANALYST = "ai_analyst"
 
 
@@ -44,9 +48,38 @@ class EventType(StrEnum):
     TASK_RESULT = "TASK_RESULT"
     TASK_FAILED = "TASK_FAILED"
     MISSION_COMPLETED = "MISSION_COMPLETED"
+    MISSION_MERKLE_ROOT = "MISSION_MERKLE_ROOT"
     NODE_DISCONNECTED = "NODE_DISCONNECTED"
     NODE_RECONNECTED = "NODE_RECONNECTED"
     PLUGIN_BLOCKED = "PLUGIN_BLOCKED"
+    POLICY_BLOCKED = "POLICY_BLOCKED"
+
+
+class SignatureStatus(StrEnum):
+    VALID = "valid"
+    INVALID = "invalid"
+    MISSING = "missing"
+
+
+class PolicyDecision(StrEnum):
+    ALLOW = "ALLOW"
+    BLOCK = "BLOCK"
+
+
+class MerkleProofStatus(StrEnum):
+    VALID = "valid"
+    INVALID = "invalid"
+    PENDING = "pending"
+    NOT_APPLICABLE = "not_applicable"
+
+
+class VerifierStatus(StrEnum):
+    VERIFIED = "VERIFIED"
+    TAMPERED = "TAMPERED"
+    SIGNATURE_INVALID = "SIGNATURE_INVALID"
+    NOT_ANCHORED = "NOT_ANCHORED"
+    MERKLE_INVALID = "MERKLE_INVALID"
+    INCOMPLETE = "INCOMPLETE"
 
 
 class OnChainStatus(StrEnum):
@@ -73,7 +106,9 @@ class IntegrityStatus(StrEnum):
 
 
 # Allowlisted plugins the operator may target. Mirrors the node plugin registry.
-ALLOWED_PLUGINS: frozenset[str] = frozenset(
+from app.core.iot_plugins import IOT_PLUGINS
+
+_COMPUTER_PLUGINS = frozenset(
     {
         "system_info",
         "health_check",
@@ -83,3 +118,5 @@ ALLOWED_PLUGINS: frozenset[str] = frozenset(
         "allowed_command",
     }
 )
+
+ALLOWED_PLUGINS: frozenset[str] = _COMPUTER_PLUGINS | IOT_PLUGINS

@@ -44,6 +44,63 @@ PREDEFINED_MISSIONS: list[dict] = [
             {"plugin": "health_check", "args": {}},
         ],
     },
+    {
+        "id": "mission-iot-lab-health",
+        "name": "IoT Lab Health Check",
+        "description": "Verify the simulated IoT gateway and enumerate subdevices.",
+        "steps": [
+            {"plugin": "gateway_health", "args": {}},
+            {"plugin": "list_devices", "args": {}},
+            {"plugin": "get_gateway_snapshot", "args": {}},
+        ],
+    },
+    {
+        "id": "mission-iot-environmental",
+        "name": "Environmental Snapshot",
+        "description": "Read temperature, humidity, motion, and light from simulated sensors.",
+        "steps": [
+            {"plugin": "read_temperature", "args": {"device_id": "temp-001"}},
+            {"plugin": "read_humidity", "args": {"device_id": "humidity-001"}},
+            {"plugin": "read_motion", "args": {"device_id": "motion-001"}},
+            {"plugin": "read_light", "args": {"device_id": "light-001"}},
+        ],
+    },
+    {
+        "id": "mission-iot-led-proof",
+        "name": "LED Proof Mission",
+        "description": "Demonstrate verifiable actuator control on simulated LED-001.",
+        "steps": [
+            {"plugin": "led_on", "args": {"device_id": "led-001"}},
+            {
+                "plugin": "led_blink",
+                "args": {"device_id": "led-001", "duration_ms": 2000, "interval_ms": 250},
+            },
+            {"plugin": "led_off", "args": {"device_id": "led-001"}},
+        ],
+    },
+    {
+        "id": "mission-iot-hybrid",
+        "name": "Hybrid Mission",
+        "description": "Combine computer node health check with IoT gateway orchestration.",
+        "steps": [
+            {"plugin": "health_check", "node_id": "node-001", "args": {}},
+            {"plugin": "gateway_health", "node_id": "gateway-sim-001", "args": {}},
+            {
+                "plugin": "read_temperature",
+                "node_id": "gateway-sim-001",
+                "args": {"device_id": "temp-001"},
+            },
+            {
+                "plugin": "led_blink",
+                "node_id": "gateway-sim-001",
+                "args": {
+                    "device_id": "led-001",
+                    "duration_ms": 2000,
+                    "interval_ms": 250,
+                },
+            },
+        ],
+    },
 ]
 
 

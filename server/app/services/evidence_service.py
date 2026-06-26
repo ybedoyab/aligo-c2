@@ -5,18 +5,36 @@ from __future__ import annotations
 from sqlmodel import Session
 
 from app.core.enums import IntegrityStatus, TaskStatus
+from app.core.signing import build_signable_result_payload
 from app.models.mission import Mission
+from app.models.node import Node
 from app.schemas.node import (
     NodeDetailRead,
     NodeRead,
     NodeStats,
     NodeTaskHistoryRow,
 )
-from app.schemas.task import TaskEvidenceRead
-from app.services import node_service, ledger_service, result_service, task_service
+from app.schemas.task import CustodyStepRead, EvidenceBundleRead, TaskEvidenceRead
+from app.services import (
+    custody_service,
+    iot_service,
+    ledger_service,
+    merkle_service,
+    node_service,
+    result_service,
+    task_service,
+    verifier_service,
+)
 
 
 def build_task_evidence(session: Session, task_id: str) -> TaskEvidenceRead | None:
+    bundle = build_evidence_bundle(session, task_id)
+    if bundle is None:
+        return None
+    return TaskEvidenceRead(**bundle.model_dump())
+
+
+def build_evidence_bundle(session: Session, task_id: str) -> EvidenceBundleRead | None:
     task = task_service.get_task(session, task_id)
     if task is None:
         return None
@@ -24,9 +42,34 @@ def build_task_evidence(session: Session, task_id: str) -> TaskEvidenceRead | No
     result = result_service.get_result_for_task(session, task_id)
     ledger_event = ledger_service.get_primary_result_event(session, task_id)
     mission = session.get(Mission, task.mission_id)
+    node = session.get(Node, task.node_id)
     integrity = ledger_service.integrity_for_event(session, ledger_event)
+    merkle_status = merkle_service.merkle_proof_status(session, task_id, mission)
 
-    return TaskEvidenceRead(
+    signed_payload = None
+    if result:
+        signed_payload = build_signable_result_payload(
+            task_id=task.id,
+            mission_id=task.mission_id,
+            node_id=task.node_id,
+            status=str(result.status),
+            stdout=result.stdout,
+            stderr=result.stderr,
+            exit_code=result.exit_code,
+            duration_ms=result.duration_ms,
+            timestamp=result.created_at.isoformat(),
+        )
+
+    custody = custody_service.build_chain_of_custody(
+        session,
+        task=task,
+        result=result,
+        node=node,
+        mission=mission,
+        primary_event=ledger_event,
+    )
+
+    base = TaskEvidenceRead(
         task_id=task.id,
         node_id=task.node_id,
         mission_id=task.mission_id,
@@ -49,7 +92,31 @@ def build_task_evidence(session: Session, task_id: str) -> TaskEvidenceRead | No
         on_chain_status=ledger_event.onchain_status if ledger_event else None,
         integrity_status=integrity,
         result_id=result.id if result else None,
+        node_fingerprint=node.fingerprint if node else None,
+        node_public_key=node.public_key if node else None,
+        node_signature=result.node_signature if result else None,
+        signature_status=result.signature_status if result else "missing",
+        policy_decision=task.policy_decision,
+        evidence_hash=task.evidence_hash or (
+            ledger_event.payload_hash if ledger_event else None
+        ),
+        mission_merkle_root=mission.merkle_root if mission else None,
+        merkle_proof=task.merkle_proof,
+        merkle_proof_status=str(merkle_status),
+        chain_of_custody=[CustodyStepRead(**s) for s in custody],
+        anchored_snapshot=ledger_event.anchored_snapshot if ledger_event else None,
+        **iot_service.build_iot_evidence_extras(task=task, node=node, result=result),
     )
+
+    bundle_dict = base.model_dump()
+    bundle_dict["ledger_payload"] = ledger_event.payload if ledger_event else None
+    bundle_dict["result_timestamp"] = result.created_at.isoformat() if result else None
+    bundle_dict["signed_payload"] = signed_payload
+    bundle_dict["verification_summary"] = verifier_service.verify_evidence_bundle(
+        bundle_dict
+    ).get("summary", {})
+
+    return EvidenceBundleRead(**bundle_dict)
 
 
 def _task_history_row(session: Session, task) -> NodeTaskHistoryRow:

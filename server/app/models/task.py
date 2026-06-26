@@ -24,6 +24,9 @@ class Task(SQLModel, table=True):
     plugin: str
     args: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     status: TaskStatus = Field(default=TaskStatus.PENDING)
+    policy_decision: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
+    evidence_hash: str | None = Field(default=None, max_length=64)
+    merkle_proof: list[str] | None = Field(default=None, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=_utcnow)
     sent_at: datetime | None = Field(default=None)
     completed_at: datetime | None = Field(default=None)

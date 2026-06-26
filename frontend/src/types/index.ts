@@ -1,5 +1,12 @@
 export type NodeStatus = "online" | "offline" | "warning" | "error";
-export type NodeType = "real" | "simulated" | "ai_analyst";
+export type NodeType =
+  | "real"
+  | "simulated"
+  | "computer_node"
+  | "iot_gateway"
+  | "iot_sensor"
+  | "iot_actuator"
+  | "ai_analyst";
 export type MissionStatus =
   | "draft"
   | "running"
@@ -52,6 +59,49 @@ export interface Node {
   trusted: boolean;
   node_type: NodeType;
   policy_id: string;
+  public_key?: string;
+  fingerprint?: string;
+  iot_snapshot?: Record<string, unknown> | null;
+  iot_devices?: IoTDevice[] | null;
+}
+
+export interface IoTDevice {
+  device_id: string;
+  device_type: string;
+  label: string;
+  state: Record<string, unknown>;
+  last_updated: string;
+  status: string;
+}
+
+export interface IoTLabState {
+  gateway_id: string;
+  online: boolean;
+  status: string;
+  health_score: number;
+  policy_id: string;
+  last_seen: string | null;
+  node_type: string;
+  subdevice_count: number;
+  devices: IoTDevice[];
+  snapshot: Record<string, unknown>;
+  telemetry: {
+    temperature_c: number | null;
+    humidity_pct: number | null;
+    motion_detected: boolean | null;
+    lux: number | null;
+    led: Record<string, unknown> | null;
+  };
+  recent_events: Array<{
+    task_id: string;
+    plugin: string;
+    args: Record<string, unknown>;
+    status: string;
+    device_id?: string;
+    completed_at: string | null;
+    stdout_preview?: string;
+  }>;
+  stats: Record<string, number>;
 }
 
 export interface NodeUpdate {
@@ -114,6 +164,7 @@ export interface NodeDetail {
 export interface MissionStep {
   plugin: string;
   args: Record<string, unknown>;
+  node_id?: string;
 }
 
 export interface Mission {
@@ -127,6 +178,10 @@ export interface Mission {
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
+  merkle_root?: string | null;
+  merkle_root_tx?: string | null;
+  merkle_root_block?: number | null;
+  merkle_root_status?: string | null;
 }
 
 export interface Task {
@@ -139,6 +194,14 @@ export interface Task {
   created_at: string;
   sent_at: string | null;
   completed_at: string | null;
+}
+
+export interface CustodyStep {
+  step: number;
+  label: string;
+  timestamp: string | null;
+  status: string;
+  detail: string;
 }
 
 export interface TaskEvidence {
@@ -164,6 +227,57 @@ export interface TaskEvidence {
   on_chain_status: OnChainStatus | null;
   integrity_status: IntegrityStatus;
   result_id: string | null;
+  node_fingerprint?: string | null;
+  node_public_key?: string | null;
+  node_signature?: string | null;
+  signature_status?: string | null;
+  policy_decision?: Record<string, unknown> | null;
+  evidence_hash?: string | null;
+  mission_merkle_root?: string | null;
+  merkle_proof?: string[] | null;
+  merkle_proof_status?: string | null;
+  chain_of_custody?: CustodyStep[];
+  anchored_snapshot?: Record<string, unknown> | null;
+  node_type?: string | null;
+  device_id?: string | null;
+  device_type?: string | null;
+  evidence_class?: string | null;
+  iot_summary?: {
+    gateway: string;
+    subdevice?: string | null;
+    physical_style_action: string;
+    simulated_execution: boolean;
+    evidence_class: string;
+  } | null;
+}
+
+export interface EvidenceBundle extends TaskEvidence {
+  verification_summary?: Record<string, unknown>;
+  ledger_payload?: Record<string, unknown> | null;
+  signed_payload?: Record<string, unknown> | null;
+}
+
+export interface MissionDryRun {
+  mission_id: string;
+  ready: boolean;
+  tasks_to_dispatch: number;
+  blocked_count: number;
+  ledger_connected: boolean;
+  items: Array<{
+    node_id: string;
+    plugin: string;
+    decision: string;
+    reason: string;
+    ready: boolean;
+  }>;
+  summary: string;
+}
+
+export interface EvidenceVerifyResult {
+  status: string;
+  checks: Array<{ check: string; pass: boolean | null; detail: string }>;
+  diff: Array<{ field: string; original: string; current: string }>;
+  summary: Record<string, unknown>;
 }
 
 export interface Result {
@@ -190,7 +304,9 @@ export type EventType =
   | "MISSION_COMPLETED"
   | "NODE_DISCONNECTED"
   | "NODE_RECONNECTED"
-  | "PLUGIN_BLOCKED";
+  | "PLUGIN_BLOCKED"
+  | "POLICY_BLOCKED"
+  | "MISSION_MERKLE_ROOT";
 
 export interface LedgerEvent {
   id: string;
@@ -219,6 +335,7 @@ export interface VerifyResult {
   verified: boolean;
   status: "verified" | "tampered" | "pending_chain";
   detail: string;
+  diff?: Array<{ field: string; original: string; current: string }>;
 }
 
 export interface ChainStatusInfo {
@@ -255,6 +372,18 @@ export const ALLOWED_PLUGINS = [
   "list_lab_directory",
   "network_info",
   "allowed_command",
+  "gateway_health",
+  "list_devices",
+  "get_device_info",
+  "get_gateway_snapshot",
+  "read_temperature",
+  "read_humidity",
+  "read_motion",
+  "read_light",
+  "led_on",
+  "led_off",
+  "led_blink",
+  "led_set_brightness",
 ] as const;
 
 export type PluginName = (typeof ALLOWED_PLUGINS)[number];
@@ -267,6 +396,7 @@ export interface WsMessage {
     | "result"
     | "mission_update"
     | "ledger_event"
+    | "iot_telemetry"
     | "pong";
   data?: unknown;
 }

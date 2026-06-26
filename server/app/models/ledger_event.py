@@ -35,4 +35,8 @@ class LedgerEvent(SQLModel, table=True):
     tx_hash: str | None = Field(default=None)
     block_number: int | None = Field(default=None)
 
+    anchored_snapshot: dict[str, Any] | None = Field(
+        default=None, sa_column=Column(JSON)
+    )
+
     created_at: datetime = Field(default_factory=_utcnow)

@@ -305,6 +305,39 @@ def kill_process_tree(pid: int) -> bool:
     return True
 
 
+def kill_stray_backend_workers() -> None:
+    """Stop leftover uvicorn/FastAPI processes that may keep SQLite open."""
+    my_pid = os.getpid()
+    if os.name == "nt":
+        script = (
+            "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | "
+            "Where-Object { "
+            "$_.CommandLine -match 'uvicorn' -and "
+            "($_.CommandLine -match 'app\\.main' -or $_.CommandLine -match 'app/main') "
+            "} | Select-Object -ExpandProperty ProcessId"
+        )
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", script],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        pids = [int(x) for x in result.stdout.split() if x.strip().isdigit()]
+    else:
+        result = subprocess.run(
+            ["pgrep", "-f", "uvicorn.*app\\.main"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        pids = [int(x) for x in result.stdout.split() if x.strip().isdigit()]
+    for pid in pids:
+        if pid == my_pid:
+            continue
+        log("SETUP", f"Stopping stray backend worker (PID {pid})")
+        kill_process_tree(pid)
+
+
 def kill_stray_node_workers() -> None:
     """Stop leftover simulated node.py processes from prior dev sessions."""
     my_pid = os.getpid()
@@ -349,8 +382,11 @@ def free_stack_ports() -> set[int]:
             if kill_process_tree(pid):
                 killed_ports.add(port)
     kill_stray_node_workers()
+    kill_stray_backend_workers()
     if killed_ports:
         time.sleep(1.2)
+    else:
+        time.sleep(0.5)
     busy = [f":{p} ({name})" for p, name in STACK_PORTS.items() if not port_free(p)]
     if busy:
         log("SETUP", f"WARNING: ports still in use after cleanup: {', '.join(busy)}")
@@ -367,6 +403,44 @@ def sqlite_db_path(env: dict[str, str]) -> Path | None:
     if len(raw) > 2 and raw[1] == ":":
         return Path(raw)
     return Path(raw)
+
+
+def sqlite_sidecar_files(db: Path) -> list[Path]:
+    """WAL/SHM files SQLite may leave beside the main database."""
+    return [db, Path(f"{db}-wal"), Path(f"{db}-shm")]
+
+
+def unlink_db_files(db: Path, *, attempts: int = 8) -> bool:
+    """Remove SQLite database and sidecars; retry while another process releases the lock."""
+    targets = sqlite_sidecar_files(db)
+    for attempt in range(attempts):
+        missing = [p for p in targets if p.is_file()]
+        if not missing:
+            return True
+        try:
+            for path in missing:
+                path.unlink(missing_ok=True)
+            return True
+        except PermissionError:
+            if attempt == 0:
+                kill_stray_backend_workers()
+            elif attempt == 1:
+                free_stack_ports()
+            wait = 0.4 + attempt * 0.35
+            log(
+                "SETUP",
+                f"Database locked — waiting {wait:.1f}s before retry "
+                f"({attempt + 1}/{attempts})",
+            )
+            time.sleep(wait)
+        except OSError as exc:
+            log("SETUP", f"Could not remove database ({exc})")
+            return False
+    log(
+        "SETUP",
+        f"ERROR: could not delete {db} — close other dev.py/uvicorn sessions and retry",
+    )
+    return False
 
 
 def ensure_fresh_db(env: dict[str, str]) -> None:
@@ -391,11 +465,19 @@ def ensure_fresh_db(env: dict[str, str]) -> None:
                 stale = True
         if "nodes" in tables:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(nodes)")}
-            if "policy_id" not in cols or "alias" not in cols:
+            if "policy_id" not in cols or "alias" not in cols or "public_key" not in cols:
+                stale = True
+            if "iot_snapshot" not in cols:
                 stale = True
         if "tasks" in tables:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(tasks)")}
             if "node_id" not in cols and "agent_id" in cols:
+                stale = True
+            if "policy_decision" not in cols:
+                stale = True
+        if "missions" in tables:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(missions)")}
+            if "merkle_root" not in cols:
                 stale = True
         conn.close()
     except sqlite3.Error as exc:
@@ -403,7 +485,14 @@ def ensure_fresh_db(env: dict[str, str]) -> None:
         stale = True
     if stale:
         log("SETUP", f"Resetting stale database: {db}")
-        db.unlink(missing_ok=True)
+        kill_stray_backend_workers()
+        time.sleep(0.8)
+        if not unlink_db_files(db):
+            log(
+                "SETUP",
+                "Continuing with existing database — schema migration may fail; "
+                "use --keep-db or stop other stack processes",
+            )
 
 
 def check_ports() -> None:
@@ -514,7 +603,8 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Start the full Aligo C2 dev stack")
     parser.add_argument("--skip-install", action="store_true", help="skip dependency install")
-    parser.add_argument("--no-nodes", action="store_true", help="do not start simulated nodes")
+    parser.add_argument("--no-iot", action="store_true", help="do not start simulated IoT gateway")
+    parser.add_argument("--no-nodes", action="store_true", help="do not start simulated computer nodes")
     parser.add_argument("--node-count", type=int, default=3, help="simulated nodes (default: 3)")
     parser.add_argument("--redeploy", action="store_true", help="redeploy smart contract")
     parser.add_argument(
@@ -607,6 +697,17 @@ def main() -> None:
             node_env,
         )
         time.sleep(1.5)
+
+    if not args.no_iot:
+        log("IOT", "Starting simulated IoT gateway (gateway-sim-001)…")
+        iot_env = env.copy()
+        spawn(
+            "IOT",
+            [str(PYTHON), "iot_gateway.py", "--gateway-id", "gateway-sim-001"],
+            ROOT / "node",
+            iot_env,
+        )
+        time.sleep(1.0)
 
     print_urls(node_count)
 

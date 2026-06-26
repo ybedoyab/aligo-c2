@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.core.enums import ChainStatus, EventType, OnChainStatus
 
@@ -39,6 +39,7 @@ class LedgerVerifyResult(BaseModel):
     verified: bool
     status: str
     detail: str
+    diff: list[dict[str, str]] = Field(default_factory=list)
 
 
 class ChainStatusRead(BaseModel):

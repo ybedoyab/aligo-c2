@@ -8,8 +8,9 @@ from sqlmodel import Session, select
 
 from app.core.config import settings
 from app.core.enums import NodeStatus, NodeType, TaskStatus
-from app.core.policies import DEFAULT_POLICY_ID
+from app.core.policies import DEFAULT_POLICY_ID, NODE_POLICIES
 from app.models.node import Node
+from app.core.signing import fingerprint_from_public_key
 from app.schemas.node import NodeHealthExplanation, NodeHealthFactor, NodeRegister, NodeUpdate
 from app.services import result_service, task_service
 
@@ -19,11 +20,22 @@ def _utcnow() -> datetime:
 
 
 def _infer_node_type(node_id: str) -> NodeType:
+    if node_id.startswith("gateway-"):
+        return NodeType.IOT_GATEWAY
     if node_id.startswith("ai-"):
         return NodeType.AI_ANALYST
     if node_id.startswith("node-"):
         return NodeType.SIMULATED
     return NodeType.REAL
+
+
+def _apply_iot_snapshot(node: Node, snapshot: dict | None) -> None:
+    if not snapshot:
+        return
+    node.iot_snapshot = snapshot
+    devices = snapshot.get("devices")
+    if isinstance(devices, list):
+        node.iot_devices = devices
 
 
 def register_node(session: Session, reg: NodeRegister) -> tuple[Node, bool]:
@@ -43,7 +55,11 @@ def register_node(session: Session, reg: NodeRegister) -> tuple[Node, bool]:
             last_seen=now,
             registered_at=now,
             node_type=_infer_node_type(reg.node_id),
-            policy_id=DEFAULT_POLICY_ID,
+            policy_id=(
+                "iot_demo_policy"
+                if reg.node_id.startswith("gateway-")
+                else DEFAULT_POLICY_ID
+            ),
         )
     else:
         node.hostname = reg.hostname or node.hostname
@@ -55,6 +71,19 @@ def register_node(session: Session, reg: NodeRegister) -> tuple[Node, bool]:
             node.status = NodeStatus.ONLINE
             node.health_score = min(100, node.health_score + 5)
         node.last_seen = now
+    if reg.node_type:
+        try:
+            node.node_type = NodeType(reg.node_type)
+        except ValueError:
+            pass
+    if node.node_type == NodeType.IOT_GATEWAY:
+        node.policy_id = "iot_demo_policy"
+        node.group = node.group or "iot-lab"
+        node.alias = node.alias or "Simulated IoT Gateway"
+    if reg.public_key:
+        node.public_key = reg.public_key.strip()
+        node.fingerprint = fingerprint_from_public_key(node.public_key)
+    _apply_iot_snapshot(node, reg.iot_snapshot)
     session.add(node)
     session.commit()
     session.refresh(node)
@@ -86,13 +115,16 @@ def delete_node(session: Session, node_id: str) -> bool:
     return True
 
 
-def heartbeat(session: Session, node_id: str) -> Node | None:
+def heartbeat(
+    session: Session, node_id: str, iot_snapshot: dict | None = None
+) -> Node | None:
     node = session.get(Node, node_id)
     if node is None or not node.enabled:
         return None
     node.last_seen = _utcnow()
     node.status = NodeStatus.ONLINE
     node.health_score = min(100, compute_health_score(session, node))
+    _apply_iot_snapshot(node, iot_snapshot)
     session.add(node)
     session.commit()
     session.refresh(node)

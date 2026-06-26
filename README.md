@@ -10,6 +10,9 @@
 > run them across multiple nodes, monitor results in real time, and register evidence
 > hashes on a private blockchain to prove the operation was not tampered with.
 
+**Simulated IoT:** The platform also orchestrates a software IoT gateway with sensors and
+actuators (no physical hardware). See [`docs/iot-simulation.md`](docs/iot-simulation.md).
+
 ## Ethical notice (read first)
 
 This project is intended **exclusively** for closed, controlled, and **authorized**

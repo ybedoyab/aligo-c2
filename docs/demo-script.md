@@ -16,6 +16,9 @@ controls and the **Jury mode** checklist.
 | 5:00 | Tamper | **Demo → Simulate tamper** → Evidence → Verify. | "Controlled lab demo: we tamper a local copy only — Verify flags **tampered** because the chain record is immutable." |
 | 5:30 | Export | **Demo → Export mission report (MD)**. | "Mission dossier for the jury: tasks, results, ledger hashes, timeline, and summary." |
 | 6:30 | Close | **Show replay** + timeline with mission names, plugins, ledger badges. | "Full auditable chain from connect to verified evidence. Thank you." |
+| — | **IoT (optional)** | **IoT Lab** → blink LED → **Demo → Verify latest IoT event**. | "We also orchestrate a simulated IoT gateway — sensors and actuators with the same ledger evidence, no physical hardware." |
+
+See also [`iot-demo-script.md`](iot-demo-script.md) for a dedicated IoT jury walkthrough.
 
 ## 5-minute fast path
 
@@ -34,7 +37,8 @@ controls and the **Jury mode** checklist.
 - [ ] `CONTRACT_ADDRESS` in `.env` **or** `deployment.json` at repo root
 - [ ] Server restarted after setting contract (`/health` → `chain_status: connected`)
 - [ ] Frontend sidebar shows **Live** and contract address snippet
-- [ ] Nodes connected (`python node.py --simulate-count 3`)
+- [ ] Nodes connected (`python dev.py` or `python node.py --simulate-count 3`)
+- [ ] IoT gateway online (`gateway-sim-001` — started automatically by `dev.py`)
 
 ## What to highlight for judges
 

@@ -18,6 +18,9 @@ class NodeRegister(BaseModel):
     os: str = Field(default="", max_length=128)
     username: str = Field(default="", max_length=128)
     token: str | None = Field(default=None, max_length=512)
+    public_key: str | None = Field(default=None, max_length=128)
+    node_type: str | None = Field(default=None, max_length=32)
+    iot_snapshot: dict | None = None
     timestamp: str | None = None
 
 
@@ -39,6 +42,10 @@ class NodeRead(BaseModel):
     trusted: bool = True
     node_type: NodeType = NodeType.REAL
     policy_id: str = "basic_safe"
+    public_key: str = ""
+    fingerprint: str = ""
+    iot_snapshot: dict | None = None
+    iot_devices: list[dict] | None = None
 
     model_config = {"from_attributes": True}
 

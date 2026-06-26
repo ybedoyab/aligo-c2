@@ -24,6 +24,7 @@ from typing import Any
 import websockets
 
 from config import NodeConfig
+from identity import load_or_create_identity
 from plugins import available_plugins, get_plugin
 from protocol import (
     error_message,
@@ -32,6 +33,7 @@ from protocol import (
     result_message,
     task_ack_message,
 )
+from signing import build_signable_result_payload, sign_result
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,6 +49,7 @@ class Node:
         self.hostname = socket.gethostname()
         self.os_name = platform.system()
         self.username = getpass.getuser()
+        self._identity = load_or_create_identity(node_id)
 
     async def run_forever(self) -> None:
         """Connect/reconnect loop with exponential backoff (node_id preserved)."""
@@ -76,6 +79,7 @@ class Node:
                         self.os_name,
                         self.username,
                         self.cfg.shared_token,
+                        self._identity["public_key"],
                     )
                 )
             )
@@ -181,9 +185,29 @@ class Node:
             )
 
     async def _send_result(self, ws: Any, **kwargs: Any) -> None:
+        from protocol import now_iso
+
+        timestamp = now_iso()
+        signable = build_signable_result_payload(
+            task_id=kwargs["task_id"],
+            mission_id=kwargs.get("mission_id", ""),
+            node_id=self.node_id,
+            status=kwargs["status"],
+            stdout=kwargs.get("stdout", ""),
+            stderr=kwargs.get("stderr", ""),
+            exit_code=int(kwargs.get("exit_code", 0)),
+            duration_ms=int(kwargs.get("duration_ms", 0)),
+            timestamp=timestamp,
+        )
+        signature = sign_result(self._identity["private_key"], signable)
         await ws.send(
             json.dumps(
-                result_message(node_id=self.node_id, **kwargs)
+                result_message(
+                    node_id=self.node_id,
+                    node_signature=signature,
+                    timestamp=timestamp,
+                    **kwargs,
+                )
             )
         )
 

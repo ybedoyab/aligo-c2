@@ -15,7 +15,9 @@ from app.core.security import verify_node_token
 from app.db.database import engine
 from app.schemas.node import NodeRead, NodeRegister
 from app.schemas.result import ResultIn
-from app.services import node_service, mission_service, result_service
+from app.services import ledger_service, merkle_service, mission_service, node_service, result_service
+from app.services.result_service import ResultRejected
+from app.services import task_service
 from app.websocket import notifier
 from app.websocket.manager import manager
 
@@ -34,7 +36,6 @@ async def node_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
     node_id: str | None = None
     try:
-        # ---- Registration handshake ----
         raw = await websocket.receive_text()
         if len(raw.encode("utf-8")) > settings.max_ws_message_bytes:
             await _reject(websocket, "register message too large")
@@ -83,11 +84,11 @@ async def node_endpoint(websocket: WebSocket) -> None:
                 "hostname": reg.hostname,
                 "os": reg.os,
                 "username": reg.username,
+                "fingerprint": node_payload.get("fingerprint"),
             },
         )
         await notifier.broadcast({"type": "node_update", "data": node_payload})
 
-        # ---- Message loop ----
         while True:
             raw = await websocket.receive_text()
             if len(raw.encode("utf-8")) > settings.max_ws_message_bytes:
@@ -105,7 +106,7 @@ async def node_endpoint(websocket: WebSocket) -> None:
 
     except WebSocketDisconnect:
         logger.info("Node socket disconnected: %s", node_id)
-    except Exception as exc:  # pragma: no cover - defensive
+    except Exception as exc:  # pragma: no cover
         logger.exception("Node socket error (%s): %s", node_id, exc)
     finally:
         if node_id:
@@ -132,8 +133,9 @@ async def _handle_node_message(
     msg_type = msg.get("type")
 
     if msg_type == "heartbeat":
+        iot_snapshot = msg.get("iot_snapshot")
         with Session(engine) as session:
-            node = node_service.heartbeat(session, node_id)
+            node = node_service.heartbeat(session, node_id, iot_snapshot=iot_snapshot)
             payload = (
                 NodeRead.model_validate(node).model_dump(mode="json")
                 if node
@@ -141,10 +143,20 @@ async def _handle_node_message(
             )
         if payload:
             await notifier.broadcast({"type": "node_update", "data": payload})
+            if iot_snapshot:
+                await notifier.broadcast(
+                    {
+                        "type": "iot_telemetry",
+                        "data": {
+                            "node_id": node_id,
+                            "snapshot": iot_snapshot,
+                            "devices": iot_snapshot.get("devices", []),
+                        },
+                    }
+                )
         return
 
     if msg_type == "task_ack":
-        # Informational; the task was already marked 'sent' when dispatched.
         return
 
     if msg_type == "result":
@@ -170,17 +182,28 @@ async def _handle_result(msg: dict) -> None:
     from app.schemas.result import ResultRead
     from app.schemas.task import TaskRead
 
-    with Session(engine) as session:
-        result = result_service.save_result(session, payload)
-        result_payload = ResultRead.model_validate(result).model_dump(mode="json")
-        from app.services import task_service
-
-        task = task_service.get_task(session, payload.task_id)
-        task_payload = (
-            TaskRead.model_validate(task).model_dump(mode="json") if task else None
+    task_args: dict = {}
+    try:
+        with Session(engine) as session:
+            result = result_service.save_result(session, payload)
+            result_payload = ResultRead.model_validate(result).model_dump(mode="json")
+            task = task_service.get_task(session, payload.task_id)
+            if task:
+                task_args = task.args or {}
+            task_payload = (
+                TaskRead.model_validate(task).model_dump(mode="json") if task else None
+            )
+    except ResultRejected as exc:
+        logger.warning("Rejected result for %s: %s", payload.task_id, exc.reason)
+        await notifier.emit_event(
+            event_type=EventType.TASK_FAILED,
+            mission_id=payload.mission_id,
+            task_id=payload.task_id,
+            node_id=payload.node_id,
+            data={"reason": exc.reason, "signature_rejected": True},
         )
+        return
 
-    # Ledger event: success vs failure.
     event_type = (
         EventType.TASK_RESULT
         if payload.status == TaskStatus.SUCCESS
@@ -198,29 +221,47 @@ async def _handle_result(msg: dict) -> None:
             "stdout": payload.stdout,
             "stderr": payload.stderr,
             "metadata": payload.metadata,
+            "evidence_type": payload.metadata.get("evidence_type"),
+            "device_id": payload.metadata.get("device_id") or task_args.get("device_id"),
+            "node_signature": payload.node_signature,
+            "signature_status": result_payload.get("signature_status"),
         },
     )
+
+    with Session(engine) as session:
+        event = ledger_service.get_primary_result_event(session, payload.task_id)
+        if event:
+            task_service.set_evidence_hash(session, payload.task_id, event.payload_hash)
 
     await notifier.broadcast({"type": "result", "data": result_payload})
     if task_payload:
         await notifier.broadcast({"type": "task_update", "data": task_payload})
 
-    # Recompute mission status and emit MISSION_COMPLETED if it just finished.
     if payload.mission_id:
         from app.schemas.mission import MissionRead
 
         with Session(engine) as session:
             mission = mission_service.recompute_status(session, payload.mission_id)
+            if mission and mission.status.value in {
+                "completed",
+                "failed",
+                "partially_failed",
+            }:
+                merkle_service.finalize_mission_merkle(session, payload.mission_id)
+                mission = mission_service.get_mission(session, payload.mission_id)
             mission_payload = (
                 MissionRead.model_validate(mission).model_dump(mode="json")
                 if mission
                 else None
             )
-        if mission_payload:
+        if mission_payload and mission_payload.get("status") != "running":
             await notifier.emit_event(
                 event_type=EventType.MISSION_COMPLETED,
                 mission_id=payload.mission_id,
-                data={"status": mission_payload["status"]},
+                data={
+                    "status": mission_payload["status"],
+                    "merkle_root": mission_payload.get("merkle_root"),
+                },
             )
             await notifier.broadcast(
                 {"type": "mission_update", "data": mission_payload}

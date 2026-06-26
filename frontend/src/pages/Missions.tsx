@@ -42,6 +42,26 @@ function MissionRow({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [dryRun, setDryRun] = useState<string | null>(null);
+
+  const dryRunMission = async () => {
+    setBusy(true);
+    setError("");
+    setDryRun(null);
+    try {
+      const targets = mission.target_node_ids.length
+        ? mission.target_node_ids
+        : onlineIds;
+      const report = await api.dryRunMission(mission.id, targets);
+      setDryRun(
+        `${report.ready ? "READY" : "BLOCKED"} — ${report.summary} (${report.tasks_to_dispatch} to dispatch)`
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const start = async () => {
     setBusy(true);
@@ -76,9 +96,18 @@ function MissionRow({
         <div className="text-[11px] text-soc-muted font-mono mt-1">
           steps: {mission.steps.map((s) => s.plugin).join(" → ")}
         </div>
+        {mission.merkle_root && (
+          <div className="text-[11px] text-soc-accent font-mono mt-1">
+            merkle root: {mission.merkle_root.slice(0, 16)}… · {mission.merkle_root_status}
+          </div>
+        )}
+        {dryRun && <div className="text-xs text-soc-warn mt-1">{dryRun}</div>}
         {error && <div className="text-xs text-soc-err mt-1">{error}</div>}
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        <button className="btn-ghost text-xs" onClick={dryRunMission} disabled={busy}>
+          Dry run
+        </button>
         <button className="btn-primary text-xs" onClick={start} disabled={busy}>
           {busy ? "Starting…" : "Run"}
         </button>

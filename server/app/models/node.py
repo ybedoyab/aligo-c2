@@ -38,3 +38,7 @@ class Node(SQLModel, table=True):
     trusted: bool = Field(default=True)
     node_type: NodeType = Field(default=NodeType.REAL)
     policy_id: str = Field(default=DEFAULT_POLICY_ID, max_length=64)
+    public_key: str = Field(default="", max_length=128)
+    fingerprint: str = Field(default="", max_length=64)
+    iot_snapshot: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
+    iot_devices: list[dict[str, Any]] | None = Field(default=None, sa_column=Column(JSON))

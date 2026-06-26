@@ -7,10 +7,10 @@ from datetime import datetime, timezone
 
 from sqlmodel import Session
 
-from app.core.enums import EventType, TaskStatus
+from app.core.enums import EventType, PolicyDecision, TaskStatus
 from app.db.database import engine
 from app.schemas.task import TaskRead
-from app.services import task_service
+from app.services import ledger_service, node_service, policy_service, task_service
 from app.websocket import notifier
 from app.websocket.manager import manager
 
@@ -21,6 +21,23 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 
+def _block_task(session: Session, task, decision: dict) -> None:
+    task_service.set_status(session, task.id, TaskStatus.BLOCKED_BY_POLICY)
+    ledger_service.record_event(
+        session,
+        event_type=EventType.POLICY_BLOCKED,
+        mission_id=task.mission_id,
+        task_id=task.id,
+        node_id=task.node_id,
+        data={
+            "plugin": task.plugin,
+            "policy_id": decision.get("policy_id"),
+            "reason": decision.get("reason"),
+            "policy_decision": decision,
+        },
+    )
+
+
 async def dispatch_task(task_id: str) -> bool:
     """Send a single task to its node. Marks it failed if the node is offline."""
     with Session(engine) as session:
@@ -29,6 +46,17 @@ async def dispatch_task(task_id: str) -> bool:
             return False
         if task.status == TaskStatus.BLOCKED_BY_POLICY:
             return False
+
+        node = node_service.get_node(session, task.node_id)
+        decision = task.policy_decision or policy_service.evaluate_policy(
+            node, task.plugin, node_id=task.node_id, require_online=True
+        )
+        if not task.policy_decision:
+            task_service.set_policy_decision(session, task.id, decision)
+        if decision["decision"] == str(PolicyDecision.BLOCK):
+            _block_task(session, task, decision)
+            return False
+
         task_view = TaskRead.model_validate(task).model_dump(mode="json")
 
     node_id = task_view["node_id"]
@@ -57,7 +85,6 @@ async def dispatch_task(task_id: str) -> bool:
         await notifier.broadcast({"type": "task_update", "data": task_view})
         return True
 
-    # Node not connected: mark the task failed so missions don't hang forever.
     with Session(engine) as session:
         task = task_service.set_status(session, task_id, TaskStatus.FAILED)
         task_view = TaskRead.model_validate(task).model_dump(mode="json")
