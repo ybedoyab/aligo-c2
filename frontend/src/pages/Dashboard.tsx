@@ -1,22 +1,44 @@
-import { Link } from "react-router-dom";
+import { FleetTopologySummary } from "../components/FleetTopologySummary";
+import {
+  CompletedTasksIcon,
+  FailedTasksIcon,
+  LedgerIcon,
+  MissionsIcon,
+  NodesIcon,
+  type NavIcon,
+} from "../components/icons";
 import { TimelineReplay } from "../components/TimelineReplay";
-import { HealthBadge, StatusBadge } from "../components/HealthBadge";
 import { useI18n } from "../i18n";
 import { useC2 } from "../store";
 
-function Metric({
-  label,
-  value,
-  accent,
-}: {
+const DASHBOARD_STATUS = {
+  ONLINE: "online",
+  RUNNING: "running",
+  SUCCESS: "success",
+  FAILED: "failed",
+  TIMEOUT: "timeout",
+} as const;
+
+interface MetricProps {
   label: string;
   value: number | string;
-  accent?: string;
-}) {
+  accent: string;
+  iconAccent: string;
+  Icon: NavIcon;
+}
+
+function Metric({ label, value, accent, iconAccent, Icon }: MetricProps) {
   return (
     <div className="card p-5">
-      <div className="text-xs uppercase tracking-wide text-soc-muted">{label}</div>
-      <div className={`mt-2 text-3xl font-semibold ${accent ?? "text-white"}`}>{value}</div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="text-xs uppercase tracking-wide text-soc-muted">{label}</div>
+        <div
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-soc-bg/60 ${iconAccent}`}
+        >
+          <Icon className="h-4.5 w-4.5" />
+        </div>
+      </div>
+      <div className={`mt-2 text-3xl font-semibold ${accent}`}>{value}</div>
     </div>
   );
 }
@@ -25,11 +47,16 @@ export function Dashboard() {
   const { t } = useI18n();
   const { nodes, missions, tasks, ledger } = useC2();
 
-  const online = nodes.filter((a) => a.status === "online").length;
-  const activeMissions = missions.filter((m) => m.status === "running").length;
-  const completedTasks = tasks.filter((task) => task.status === "success").length;
+  const onlineNodes = nodes.filter((node) => node.status === DASHBOARD_STATUS.ONLINE);
+  const activeMissions = missions.filter(
+    (mission) => mission.status === DASHBOARD_STATUS.RUNNING
+  ).length;
+  const completedTasks = tasks.filter(
+    (task) => task.status === DASHBOARD_STATUS.SUCCESS
+  ).length;
   const failedTasks = tasks.filter(
-    (task) => task.status === "failed" || task.status === "timeout"
+    (task) =>
+      task.status === DASHBOARD_STATUS.FAILED || task.status === DASHBOARD_STATUS.TIMEOUT
   ).length;
 
   return (
@@ -39,71 +66,48 @@ export function Dashboard() {
         <p className="text-sm text-soc-muted">{t("dashboard.description")}</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <Metric label={t("dashboard.nodesOnline")} value={online} accent="text-soc-ok" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <Metric
+          label={t("dashboard.nodesOnline")}
+          value={onlineNodes.length}
+          accent="text-soc-ok"
+          iconAccent="border-soc-ok/30 text-soc-ok"
+          Icon={NodesIcon}
+        />
         <Metric
           label={t("dashboard.activeMissions")}
           value={activeMissions}
           accent="text-soc-accent"
+          iconAccent="border-soc-accent/30 text-soc-accent"
+          Icon={MissionsIcon}
         />
         <Metric
           label={t("dashboard.tasksCompleted")}
           value={completedTasks}
           accent="text-soc-ok"
+          iconAccent="border-soc-ok/30 text-soc-ok"
+          Icon={CompletedTasksIcon}
         />
-        <Metric label={t("dashboard.tasksFailed")} value={failedTasks} accent="text-soc-err" />
+        <Metric
+          label={t("dashboard.tasksFailed")}
+          value={failedTasks}
+          accent="text-soc-err"
+          iconAccent="border-soc-err/30 text-soc-err"
+          Icon={FailedTasksIcon}
+        />
         <Metric
           label={t("dashboard.ledgerEvents")}
           value={ledger.length}
           accent="text-soc-accent2"
+          iconAccent="border-soc-accent2/30 text-soc-accent2"
+          Icon={LedgerIcon}
         />
       </div>
 
-      <div className="card p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-white">{t("dashboard.fleetTopology")}</h3>
-          <Link to="/topology" className="text-xs text-soc-accent hover:underline">
-            {t("dashboard.openTopology")}
-          </Link>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <span className="chip text-white">
-            {t("dashboard.operatorUi")}
-          </span>
-          <span className="text-soc-muted">→</span>
-          <span className="chip text-white">
-            {t("dashboard.c2Server")}
-          </span>
-          <span className="text-soc-muted">→</span>
-          <span className="rounded-lg border border-soc-brand/40 px-3 py-2 text-soc-brand">
-            {t("dashboard.nodesOnlineCount", { count: online })}
-          </span>
-          <span className="text-soc-muted">→</span>
-          <span className="chip text-white">
-            {t("dashboard.blockchainLedger")}
-          </span>
-        </div>
-        {nodes.filter((n) => n.status === "online").length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {nodes
-              .filter((n) => n.status === "online")
-              .slice(0, 6)
-              .map((n) => (
-                <Link
-                  key={n.id}
-                  to={`/nodes/${n.id}`}
-                  className="flex items-center gap-2 chip text-xs hover:border-soc-brand"
-                >
-                  <StatusBadge status={n.status} />
-                  <span className="font-mono text-white">{n.alias || n.id}</span>
-                  <HealthBadge score={n.health_score} />
-                </Link>
-              ))}
-          </div>
-        )}
+      <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
+        <FleetTopologySummary onlineNodes={onlineNodes} />
+        <TimelineReplay events={ledger} missions={missions} tasks={tasks} />
       </div>
-
-      <TimelineReplay events={ledger} missions={missions} tasks={tasks} />
     </div>
   );
 }

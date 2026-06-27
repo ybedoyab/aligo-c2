@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import type { EventType, LedgerEvent, Mission, Task } from "../types";
+import type { EventType, LedgerEvent, Mission, OnChainStatus, Task } from "../types";
 import { useI18n } from "../i18n";
 import { shortHash } from "../utils";
 import { IntegrityBadge } from "./HealthBadge";
+import { PlayIcon } from "./icons";
 
 const EVENT_DOTS: Record<EventType, string> = {
   NODE_REGISTERED: "bg-soc-ok",
@@ -19,9 +20,21 @@ const EVENT_DOTS: Record<EventType, string> = {
   MISSION_MERKLE_ROOT: "bg-soc-accent2",
 };
 
-function isAnchored(status: string) {
-  return status === "confirmed" || status === "anchored";
-}
+const TIMELINE_INTEGRITY_STATUS = {
+  ANCHORED: "anchored",
+  PENDING: "pending_chain",
+  LOCAL: "local_only",
+} as const;
+
+const INTEGRITY_BY_CHAIN_STATUS: Record<
+  OnChainStatus,
+  (typeof TIMELINE_INTEGRITY_STATUS)[keyof typeof TIMELINE_INTEGRITY_STATUS]
+> = {
+  confirmed: TIMELINE_INTEGRITY_STATUS.ANCHORED,
+  anchored: TIMELINE_INTEGRITY_STATUS.ANCHORED,
+  pending_chain: TIMELINE_INTEGRITY_STATUS.PENDING,
+  disabled: TIMELINE_INTEGRITY_STATUS.LOCAL,
+};
 
 export function TimelineReplay({
   events,
@@ -64,7 +77,7 @@ export function TimelineReplay({
   const taskPlugin = (id: string) => tasks.find((task) => task.id === id)?.plugin;
 
   return (
-    <div className="card p-5">
+    <section className="card h-full min-h-[32rem] p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-white">{t("timeline.title")}</h3>
         <button
@@ -72,6 +85,7 @@ export function TimelineReplay({
           onClick={() => setPlaying(true)}
           disabled={playing || ordered.length === 0}
         >
+          <PlayIcon className="h-3.5 w-3.5" />
           {playing ? t("common.replaying") : t("common.replay")}
         </button>
       </div>
@@ -79,7 +93,7 @@ export function TimelineReplay({
       {ordered.length === 0 ? (
         <div className="py-8 text-center text-sm text-soc-muted">{t("timeline.empty")}</div>
       ) : (
-        <ol className="relative border-l border-soc-borderSubtle ml-2">
+        <ol className="relative ml-2 max-h-[27rem] overflow-y-auto border-l border-soc-borderSubtle pr-2">
           {ordered.slice(0, visible).map((e) => {
             const dot = EVENT_DOTS[e.event_type];
             const plugin = e.task_id ? taskPlugin(e.task_id) : null;
@@ -100,20 +114,14 @@ export function TimelineReplay({
                   {e.node_id && <span>{e.node_id} · </span>}
                   {shortHash(e.payload_hash)}
                 </div>
-                <div className="mt-1 flex gap-2 items-center">
-                  {isAnchored(e.onchain_status) ? (
-                    <IntegrityBadge status="anchored" />
-                  ) : e.onchain_status === "pending_chain" ? (
-                    <IntegrityBadge status="pending_chain" />
-                  ) : e.onchain_status === "disabled" ? (
-                    <IntegrityBadge status="local_only" />
-                  ) : null}
+                <div className="mt-1 flex items-center gap-2">
+                  <IntegrityBadge status={INTEGRITY_BY_CHAIN_STATUS[e.onchain_status]} />
                 </div>
               </li>
             );
           })}
         </ol>
       )}
-    </div>
+    </section>
   );
 }

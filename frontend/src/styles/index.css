@@ -213,3 +213,57 @@ body {
     background: rgba(244, 63, 94, 0.06);
   }
 }
+.agent-card {
+  animation: agent-aura 4s ease-in-out infinite;
+}
+
+.agent-icon-glow {
+  animation: agent-icon-pulse 2.4s ease-in-out infinite;
+}
+
+.agent-header-scan {
+  left: -6rem;
+  animation: agent-scan 5s ease-in-out infinite;
+}
+
+@keyframes agent-aura {
+  0%, 100% {
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45), 0 0 0 rgba(124, 92, 255, 0);
+  }
+  50% {
+    box-shadow: 0 6px 30px rgba(0, 0, 0, 0.5), 0 0 24px rgba(124, 92, 255, 0.16);
+  }
+}
+
+@keyframes agent-icon-pulse {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(124, 92, 255, 0.18);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(124, 92, 255, 0.42);
+    transform: scale(1.04);
+  }
+}
+
+@keyframes agent-scan {
+  0%, 20% {
+    transform: translateX(0);
+    opacity: 0;
+  }
+  45% {
+    opacity: 1;
+  }
+  70%, 100% {
+    transform: translateX(48rem);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-card,
+  .agent-icon-glow,
+  .agent-header-scan {
+    animation: none;
+  }
+}

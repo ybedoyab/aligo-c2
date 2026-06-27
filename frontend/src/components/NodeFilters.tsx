@@ -1,138 +1,162 @@
 import { useMemo, useState } from "react";
-import type { Node } from "../types";
 import { useI18n } from "../i18n";
+import type { Node } from "../types";
+import { FilterIcon, RefreshIcon } from "./icons";
+import { Select, type SelectOption } from "./Select";
 
-interface Props {
-  nodes: Node[];
-  onChange: (filters: {
-    status: string;
-    os: string;
-    group: string;
-    tag: string;
-    minHealth: string;
-  }) => void;
+const EMPTY_FILTER_VALUE = "";
+const NODE_STATUS_OPTIONS = [EMPTY_FILTER_VALUE, "online", "offline", "warning"];
+
+export interface NodeFilterValues {
+  status: string;
+  os: string;
+  group: string;
+  tag: string;
+  minHealth: string;
 }
 
-export function NodeFilters({ nodes, onChange }: Props) {
-  const { t, status } = useI18n();
-  const [filterStatus, setFilterStatus] = useState("");
-  const [os, setOs] = useState("");
-  const [group, setGroup] = useState("");
-  const [tag, setTag] = useState("");
-  const [minHealth, setMinHealth] = useState("");
+interface NodeFiltersProps {
+  nodes: Node[];
+  onChange: (filters: NodeFilterValues) => void;
+}
+
+const EMPTY_FILTERS: NodeFilterValues = {
+  status: EMPTY_FILTER_VALUE,
+  os: EMPTY_FILTER_VALUE,
+  group: EMPTY_FILTER_VALUE,
+  tag: EMPTY_FILTER_VALUE,
+  minHealth: EMPTY_FILTER_VALUE,
+};
+
+export function NodeFilters({ nodes, onChange }: NodeFiltersProps) {
+  const { t, status: translateStatus } = useI18n();
+  const [filters, setFilters] = useState<NodeFilterValues>(EMPTY_FILTERS);
 
   const groups = useMemo(
-    () => [...new Set(nodes.map((n) => n.group).filter(Boolean))].sort(),
+    () => [...new Set(nodes.map((node) => node.group).filter(Boolean))].sort(),
     [nodes]
   );
   const tags = useMemo(
-    () => [...new Set(nodes.flatMap((n) => n.tags || []))].sort(),
+    () => [...new Set(nodes.flatMap((node) => node.tags))].sort(),
     [nodes]
   );
 
-  const apply = () => onChange({ status: filterStatus, os, group, tag, minHealth });
+  const updateFilter = (key: keyof NodeFilterValues, value: string) => {
+    setFilters((current) => ({ ...current, [key]: value }));
+  };
 
-  const statusOptions = ["", "online", "offline", "warning"];
+  const clearFilters = () => {
+    setFilters(EMPTY_FILTERS);
+    onChange(EMPTY_FILTERS);
+  };
 
   return (
-    <div className="card p-4 flex flex-wrap gap-3 items-end">
-      <FilterSelect
-        className="flex-1 min-w-[9rem]"
-        label={t("nodes.status")}
-        value={filterStatus}
-        onChange={setFilterStatus}
-        options={statusOptions.map((o) => ({ value: o, label: o ? status(o) : t("common.all") }))}
-      />
-      <FilterInput label={t("nodes.osContains")} value={os} onChange={setOs} className="flex-1 min-w-[9rem]" />
-      <FilterSelect
-        className="flex-1 min-w-[9rem]"
-        label={t("nodes.group")}
-        value={group}
-        onChange={setGroup}
-        options={["", ...groups].map((o) => ({ value: o, label: o || t("common.all") }))}
-      />
-      <FilterSelect
-        className="flex-1 min-w-[9rem]"
-        label={t("nodes.tag")}
-        value={tag}
-        onChange={setTag}
-        options={["", ...tags].map((o) => ({ value: o, label: o || t("common.all") }))}
-      />
-      <FilterInput
-        label={t("nodes.minHealth")}
-        value={minHealth}
-        onChange={setMinHealth}
-        type="number"
-        className="flex-1 min-w-[9rem]"
-      />
-      <button className="btn-primary text-xs" onClick={apply}>
-        {t("common.applyFilters")}
-      </button>
-      <button
-        className="btn-ghost text-xs"
-        onClick={() => {
-          setFilterStatus("");
-          setOs("");
-          setGroup("");
-          setTag("");
-          setMinHealth("");
-          onChange({ status: "", os: "", group: "", tag: "", minHealth: "" });
-        }}
-      >
-        {t("common.clear")}
-      </button>
-    </div>
+    <section className="card overflow-hidden">
+      <div className="flex items-center gap-3 border-b border-soc-borderSubtle px-4 py-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-soc-accent/30 bg-soc-accent/10 text-soc-accent">
+          <FilterIcon className="h-4 w-4" />
+        </div>
+        <div>
+          <h2 className="text-sm font-semibold text-white">{t("nodes.filtersTitle")}</h2>
+          <p className="text-xs text-soc-muted">{t("nodes.filtersDescription")}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+        <FilterSelect
+          label={t("nodes.status")}
+          value={filters.status}
+          onChange={(value) => updateFilter("status", value)}
+          options={NODE_STATUS_OPTIONS.map((value) => ({
+            value,
+            label: value ? translateStatus(value) : t("common.all"),
+          }))}
+        />
+        <FilterInput
+          label={t("nodes.osContains")}
+          value={filters.os}
+          onChange={(value) => updateFilter("os", value)}
+        />
+        <FilterSelect
+          label={t("nodes.group")}
+          value={filters.group}
+          onChange={(value) => updateFilter("group", value)}
+          options={[EMPTY_FILTER_VALUE, ...groups].map((value) => ({
+            value,
+            label: value || t("common.all"),
+          }))}
+        />
+        <FilterSelect
+          label={t("nodes.tag")}
+          value={filters.tag}
+          onChange={(value) => updateFilter("tag", value)}
+          options={[EMPTY_FILTER_VALUE, ...tags].map((value) => ({
+            value,
+            label: value || t("common.all"),
+          }))}
+        />
+        <FilterInput
+          label={t("nodes.minHealth")}
+          value={filters.minHealth}
+          onChange={(value) => updateFilter("minHealth", value)}
+          type="number"
+        />
+      </div>
+
+      <div className="flex flex-col-reverse gap-2 border-t border-soc-borderSubtle px-4 py-3 sm:flex-row sm:justify-end">
+        <button type="button" className="btn-ghost text-xs" onClick={clearFilters}>
+          <RefreshIcon className="h-4 w-4" />
+          {t("common.clear")}
+        </button>
+        <button type="button" className="btn-primary text-xs" onClick={() => onChange(filters)}>
+          <FilterIcon className="h-4 w-4" />
+          {t("common.applyFilters")}
+        </button>
+      </div>
+    </section>
   );
 }
 
-function FilterSelect({
-  label,
-  value,
-  onChange,
-  options,
-  className = "",
-}: {
+type FilterOption = SelectOption;
+
+interface FilterSelectProps {
   label: string;
   value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-  className?: string;
-}) {
+  onChange: (value: string) => void;
+  options: FilterOption[];
+}
+
+function FilterSelect({ label, value, onChange, options }: FilterSelectProps) {
   return (
-    <label className={`flex flex-col gap-1 text-xs text-soc-muted ${className}`}>
+    <label className="flex min-w-0 flex-col gap-1.5 text-xs text-soc-muted">
       {label}
-      <select className="input text-xs" value={value} onChange={(e) => onChange(e.target.value)}>
-        {options.map((o) => (
-          <option key={o.value || "all"} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+      <Select
+        value={value}
+        options={options}
+        onChange={onChange}
+        ariaLabel={label}
+        buttonClassName="text-xs"
+      />
     </label>
   );
 }
 
-function FilterInput({
-  label,
-  value,
-  onChange,
-  type = "text",
-  className = "",
-}: {
+interface FilterInputProps {
   label: string;
   value: string;
-  onChange: (v: string) => void;
-  type?: string;
-  className?: string;
-}) {
+  onChange: (value: string) => void;
+  type?: "number" | "text";
+}
+
+function FilterInput({ label, value, onChange, type = "text" }: FilterInputProps) {
   return (
-    <label className={`flex flex-col gap-1 text-xs text-soc-muted ${className}`}>
+    <label className="flex min-w-0 flex-col gap-1.5 text-xs text-soc-muted">
       {label}
       <input
-        className="input text-xs w-full"
+        className="input w-full text-xs"
         type={type}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(event) => onChange(event.target.value)}
       />
     </label>
   );
