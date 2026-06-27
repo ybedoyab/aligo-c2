@@ -58,7 +58,7 @@ echo "Updated $BEFORE_SHA -> $AFTER_SHA"
 
 # --- 4. Decide which services to touch -------------------------------------
 # blockchain is deliberately absent from this list.
-SERVICES="server frontend node-1 node-2"
+SERVICES="server frontend node-1 node-2 iot-gateway"
 PROFILE_ARGS=""
 # If the agent is enabled (container present), include it under its profile.
 if docker inspect aligo-agent >/dev/null 2>&1; then

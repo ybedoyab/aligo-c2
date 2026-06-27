@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { api } from "../api/client";
 import { CardTitle } from "../components/CardTitle";
 import { StatusBadge } from "../components/HealthBadge";
@@ -9,19 +9,25 @@ import {
   ConsoleIcon,
   DownloadIcon,
   FailedTasksIcon,
+  FilterIcon,
   GaugeIcon,
   HammerIcon,
-  LedgerIcon,  PlayIcon,  SaveIcon,
+  LedgerIcon,
+  PlayIcon,
+  SaveIcon,
   type NavIcon,
 } from "../components/icons";
 import { MissionBuilder } from "../components/MissionBuilder";
+import { MissionRunModal } from "../components/MissionRunModal";
 import { ResultViewer } from "../components/ResultViewer";
 import { TaskConsole } from "../components/TaskConsole";
 import { TaskEvidenceModal } from "../components/TaskEvidenceModal";
+import { IOT_GATEWAY_ID } from "../constants/iot";
 import { useI18n } from "../i18n";
 import { useC2 } from "../store";
 import type { Mission, MissionStatus } from "../types";
 import { downloadMissionReport } from "../utils/missionReport";
+import { missionCatalogKey } from "../utils/missionLabels";
 
 const NODE_STATUS = {
   ONLINE: "online",
@@ -39,7 +45,44 @@ const MISSION_STATUS_ICON: Record<MissionStatus, NavIcon> = {
   partially_failed: FailedTasksIcon,
 };
 
+const IOT_PLUGINS = new Set([
+  "gateway_health",
+  "list_devices",
+  "get_device_info",
+  "get_gateway_snapshot",
+  "read_temperature",
+  "read_humidity",
+  "read_motion",
+  "read_light",
+  "led_on",
+  "led_off",
+  "led_blink",
+  "led_set_brightness",
+]);
+
 type ExportFormat = (typeof EXPORT_FORMAT)[keyof typeof EXPORT_FORMAT];
+
+function missionLabel(
+  t: (key: string) => string,
+  mission: Mission,
+  field: "name" | "description"
+): string {
+  const key = `missions.catalog.${missionCatalogKey(mission.id)}.${field}`;
+  const translated = t(key);
+  if (translated !== key) return translated;
+  return field === "name" ? mission.name : mission.description;
+}
+
+function resolveTargets(mission: Mission, onlineIds: string[]): string[] {
+  if (mission.target_node_ids.length) return mission.target_node_ids;
+  const stepNodes = [
+    ...new Set(mission.steps.map((step) => step.node_id).filter(Boolean) as string[]),
+  ];
+  if (stepNodes.length) return stepNodes;
+  const allIot = mission.steps.every((step) => IOT_PLUGINS.has(step.plugin));
+  if (allIot && onlineIds.includes(IOT_GATEWAY_ID)) return [IOT_GATEWAY_ID];
+  return onlineIds;
+}
 
 function ExportButtons({ missionId, disabled = false }: { missionId: string; disabled?: boolean }) {
   const { t } = useI18n();
@@ -83,16 +126,25 @@ interface MissionCardProps {
   mission: Mission;
   onlineIds: string[];
   onChanged: () => void;
+  onStarted: (missionId: string) => void;
   animationDelayMs: number;
 }
 
-function MissionCard({ mission, onlineIds, onChanged, animationDelayMs }: MissionCardProps) {
+function MissionCard({
+  mission,
+  onlineIds,
+  onChanged,
+  onStarted,
+  animationDelayMs,
+}: MissionCardProps) {
   const { t, status, translateError } = useI18n();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [dryRun, setDryRun] = useState<string | null>(null);
-  const targets = mission.target_node_ids.length ? mission.target_node_ids : onlineIds;
+  const targets = resolveTargets(mission, onlineIds);
   const MissionStatusIcon = MISSION_STATUS_ICON[mission.status];
+  const displayName = missionLabel(t, mission, "name");
+  const displayDescription = missionLabel(t, mission, "description");
 
   const dryRunMission = async () => {
     setBusy(true);
@@ -116,6 +168,7 @@ function MissionCard({ mission, onlineIds, onChanged, animationDelayMs }: Missio
     try {
       if (targets.length === 0) throw new Error(t("errors.noNodesOnline"));
       await api.startMission(mission.id, targets);
+      onStarted(mission.id);
       onChanged();
     } catch (caughtError) {
       setError(translateError((caughtError as Error).message));
@@ -136,7 +189,7 @@ function MissionCard({ mission, onlineIds, onChanged, animationDelayMs }: Missio
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-medium text-white">{mission.name}</h3>
+            <h3 className="text-sm font-medium text-white">{displayName}</h3>
             {mission.is_predefined ? (
               <span className="text-[10px] uppercase tracking-wide text-soc-accent2">
                 {t("common.preset")}
@@ -144,7 +197,7 @@ function MissionCard({ mission, onlineIds, onChanged, animationDelayMs }: Missio
             ) : null}
             <StatusBadge status={mission.status} />
           </div>
-          <p className="mt-1 text-xs leading-relaxed text-soc-muted">{mission.description}</p>
+          <p className="mt-1 text-xs leading-relaxed text-soc-muted">{displayDescription}</p>
         </div>
       </div>
 
@@ -199,7 +252,25 @@ export function Missions() {
     .filter((node) => node.status === NODE_STATUS.ONLINE)
     .map((node) => node.id);
   const [evidenceTaskId, setEvidenceTaskId] = useState<string | null>(null);
+  const [runMissionId, setRunMissionId] = useState<string | null>(null);
   const [builderOpen, setBuilderOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filteredMissions = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return missions;
+    return missions.filter((mission) => {
+      const name = missionLabel(t, mission, "name").toLowerCase();
+      const description = missionLabel(t, mission, "description").toLowerCase();
+      const plugins = mission.steps.map((step) => step.plugin).join(" ").toLowerCase();
+      return (
+        name.includes(q) ||
+        description.includes(q) ||
+        mission.id.toLowerCase().includes(q) ||
+        plugins.includes(q)
+      );
+    });
+  }, [missions, search, t]);
 
   return (
     <div className="space-y-6">
@@ -233,18 +304,35 @@ export function Missions() {
       </section>
 
       <section>
-        <CardTitle title={t("missions.library")} Icon={LedgerIcon} className="mb-3" />
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {missions.map((mission, index) => (
-            <MissionCard
-              key={mission.id}
-              mission={mission}
-              onlineIds={onlineIds}
-              onChanged={refreshAll}
-              animationDelayMs={index * CARD_ANIMATION_DELAY_MS}
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle title={t("missions.library")} Icon={LedgerIcon} />
+          <label className="relative w-full sm:max-w-xs">
+            <FilterIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-soc-muted" />
+            <input
+              type="search"
+              className="input pl-9 text-sm"
+              placeholder={t("missions.searchPlaceholder")}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
             />
-          ))}
+          </label>
         </div>
+        {filteredMissions.length === 0 ? (
+          <div className="card p-6 text-center text-sm text-soc-muted">{t("missions.noMatches")}</div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {filteredMissions.map((mission, index) => (
+              <MissionCard
+                key={mission.id}
+                mission={mission}
+                onlineIds={onlineIds}
+                onChanged={refreshAll}
+                onStarted={setRunMissionId}
+                animationDelayMs={index * CARD_ANIMATION_DELAY_MS}
+              />
+            ))}
+          </div>
+        )}
       </section>
 
       <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
@@ -256,6 +344,14 @@ export function Missions() {
         />
       </div>
 
+      <MissionRunModal
+        missionId={runMissionId}
+        onClose={() => setRunMissionId(null)}
+        onOpenEvidence={(taskId) => {
+          setRunMissionId(null);
+          setEvidenceTaskId(taskId);
+        }}
+      />
       <TaskEvidenceModal taskId={evidenceTaskId} onClose={() => setEvidenceTaskId(null)} />
     </div>
   );

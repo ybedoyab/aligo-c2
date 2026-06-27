@@ -333,6 +333,58 @@ export const en = {
     saveDraft: "Save draft",
     createAndRun: "Create & run",
     argsPlaceholder: 'args JSON, e.g. {"text":"hi"}',
+    searchPlaceholder: "Search missions…",
+    noMatches: "No missions match your search.",
+    runModal: {
+      started: "Started",
+      finished: "Finished",
+      tasks: "Tasks",
+      success: "Success",
+      running: "Mission in progress — tasks update live below.",
+      summary: "{{success}} succeeded · {{failed}} failed · {{blocked}} blocked by policy",
+      taskActivity: "Task activity",
+      waitingTasks: "Waiting for tasks to be created…",
+      sent: "Sent",
+      done: "Done",
+    },
+    catalog: {
+      mission_lab_health_check: {
+        name: "Lab Health Check",
+        description: "Verify each node is healthy and report basic system info.",
+      },
+      mission_basic_recon: {
+        name: "Basic Recon",
+        description: "Collect safe, local system and network information.",
+      },
+      mission_vuln_recon: {
+        name: "Vulnerability Recon",
+        description: "Lab-safe recon for vulnerability scanning: health, system, network, directory.",
+      },
+      mission_directory_audit: {
+        name: "Directory Audit",
+        description: "List the contents of each node's sandboxed lab workspace.",
+      },
+      mission_multi_node_ping: {
+        name: "Multi-Node Ping",
+        description: "Echo a ping and confirm health across every selected node.",
+      },
+      mission_iot_lab_health: {
+        name: "IoT Lab Health Check",
+        description: "Verify the simulated IoT gateway and enumerate subdevices.",
+      },
+      mission_iot_environmental: {
+        name: "Environmental Snapshot",
+        description: "Read temperature, humidity, motion, and light from simulated sensors.",
+      },
+      mission_iot_led_proof: {
+        name: "LED Proof Mission",
+        description: "Demonstrate verifiable actuator control on simulated LED-001.",
+      },
+      mission_iot_hybrid: {
+        name: "Hybrid Mission",
+        description: "Combine computer node health check with IoT gateway orchestration.",
+      },
+    },
   },
   vulnerabilities: {
     title: "Vulnerabilities Issues",

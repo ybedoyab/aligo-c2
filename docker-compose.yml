@@ -64,5 +64,17 @@ services:
     depends_on:
       - server
 
+  iot-gateway:
+    build:
+      context: ./node
+    container_name: aligo-iot-gateway
+    command: ["python", "iot_gateway.py", "--gateway-id", "gateway-sim-001"]
+    env_file:
+      - .env
+    environment:
+      - C2_WS_URL=ws://server:8000/ws/node
+    depends_on:
+      - server
+
 volumes:
   server-data:

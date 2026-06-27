@@ -1,7 +1,7 @@
 """Lab-grade security helpers.
 
 NOTE: This is intentionally simple shared-token auth suitable for an authorized lab
-environment only. It is NOT a substitute for real PKI / mutual TLS. See docs/security.md.
+environment only. It is NOT a substitute for real PKI / mutual TLS. See docs/seguridad.md.
 """
 
 from __future__ import annotations

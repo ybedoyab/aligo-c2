@@ -67,6 +67,12 @@ export function Layout() {
   }, [location.pathname]);
 
   useEffect(() => {
+    if (window.matchMedia("(min-width: 1024px)").matches) {
+      setSidebar(true);
+    }
+  }, []);
+
+  useEffect(() => {
     const mobile = window.matchMedia("(max-width: 1023px)").matches;
     document.body.style.overflow = sidebarOpen && mobile ? "hidden" : "";
     return () => {
@@ -79,15 +85,15 @@ export function Layout() {
       {sidebarOpen && (
         <button
           type="button"
-          className="fixed inset-0 z-40 app-overlay"
+          className="fixed inset-0 z-40 app-overlay lg:hidden"
           onClick={() => setSidebar(false)}
           aria-label={t("layout.closeMenu")}
         />
       )}
 
       <aside
-        className={`app-sidebar fixed inset-y-0 left-0 z-50 w-60 max-w-[85vw] shrink-0 flex flex-col transition-transform duration-300 ease-out ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        className={`app-sidebar fixed inset-y-0 left-0 z-50 flex w-60 max-w-[85vw] shrink-0 flex-col transition-transform duration-300 ease-out lg:static lg:h-screen lg:max-w-none lg:translate-x-0 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:hidden"
         }`}
       >
         <div className="px-5 py-5 border-b border-soc-borderSubtle flex items-start justify-between gap-3 bg-gradient-to-r from-soc-brand/10 to-transparent">
@@ -172,7 +178,7 @@ export function Layout() {
         </div>
       </aside>
 
-      <main className="flex-1 min-w-0 flex flex-col min-h-screen">
+      <main className="flex min-h-screen min-w-0 flex-1 flex-col">
         <header className="app-header sticky top-0 z-30 flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3">
           <button
             type="button"

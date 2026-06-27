@@ -2,7 +2,7 @@
 
 Each plugin exposes `run(args: dict) -> dict`. The returned dict is serialized as the
 result `stdout`. Only plugins registered here can ever be executed; there is no path to
-an arbitrary shell. See docs/security.md.
+an arbitrary shell. See docs/seguridad.md.
 """
 
 from __future__ import annotations

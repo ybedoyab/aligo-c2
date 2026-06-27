@@ -19,7 +19,7 @@ open before you hit record. Keep one terminal visible for launching nodes.
 
 ## Scene 2 — Architecture (0:20–0:50)
 
-**Show:** The architecture diagram (README or `docs/architecture.md`).
+**Show:** The architecture diagram (README or `docs/arquitectura.md`).
 
 **Say:**
 > "Four pieces: a React operator dashboard, a FastAPI server, modular Python nodes over
@@ -103,7 +103,7 @@ open before you hit record. Keep one terminal visible for launching nodes.
 
 ## B-roll / cutaways (optional)
 
-- `docs/security.md` allowlist section while mentioning safety.
+- `docs/seguridad.md` allowlist section while mentioning safety.
 - A quick `python -m pytest -q` showing tests pass.
 - The Swagger UI at `http://localhost:8000/docs`.
 

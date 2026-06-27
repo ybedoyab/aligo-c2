@@ -1,6 +1,6 @@
 """Protocol message builders shared by the node.
 
-Mirrors docs/protocol.md. Message types:
+Mirrors docs/arquitectura.md. Message types:
 register, register_ack, heartbeat, task, task_ack, result, error,
 mission_start, mission_complete.
 """

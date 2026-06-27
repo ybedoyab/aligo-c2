@@ -336,6 +336,58 @@ export const es: TranslationDict = {
     saveDraft: "Guardar borrador",
     createAndRun: "Crear y ejecutar",
     argsPlaceholder: 'JSON de args, ej. {"text":"hola"}',
+    searchPlaceholder: "Buscar misiones…",
+    noMatches: "Ninguna misión coincide con la búsqueda.",
+    runModal: {
+      started: "Inicio",
+      finished: "Fin",
+      tasks: "Tareas",
+      success: "Éxito",
+      running: "Misión en curso — las tareas se actualizan en vivo abajo.",
+      summary: "{{success}} exitosas · {{failed}} fallidas · {{blocked}} bloqueadas por política",
+      taskActivity: "Actividad de tareas",
+      waitingTasks: "Esperando que se creen las tareas…",
+      sent: "Enviada",
+      done: "Completada",
+    },
+    catalog: {
+      mission_lab_health_check: {
+        name: "Chequeo de salud del lab",
+        description: "Verifica que cada nodo esté sano y reporta información básica del sistema.",
+      },
+      mission_basic_recon: {
+        name: "Reconocimiento básico",
+        description: "Recopila información local segura del sistema y la red.",
+      },
+      mission_vuln_recon: {
+        name: "Recon de vulnerabilidades",
+        description: "Recon lab-safe para escaneo: salud, sistema, red y directorio.",
+      },
+      mission_directory_audit: {
+        name: "Auditoría de directorio",
+        description: "Lista el contenido del workspace sandbox de cada nodo.",
+      },
+      mission_multi_node_ping: {
+        name: "Ping multi-nodo",
+        description: "Envía un ping y confirma la salud en todos los nodos seleccionados.",
+      },
+      mission_iot_lab_health: {
+        name: "Chequeo de salud IoT Lab",
+        description: "Verifica el gateway IoT simulado y enumera los subdispositivos.",
+      },
+      mission_iot_environmental: {
+        name: "Instantánea ambiental",
+        description: "Lee temperatura, humedad, movimiento y luz de los sensores simulados.",
+      },
+      mission_iot_led_proof: {
+        name: "Misión prueba LED",
+        description: "Demuestra control verificable del actuador simulado LED-001.",
+      },
+      mission_iot_hybrid: {
+        name: "Misión híbrida",
+        description: "Combina chequeo de salud de nodo de cómputo con orquestación del gateway IoT.",
+      },
+    },
   },
   vulnerabilities: {
     title: "Vulnerabilidades",

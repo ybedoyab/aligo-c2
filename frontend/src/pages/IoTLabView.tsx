@@ -214,7 +214,7 @@ export function IoTLabView({ ledState }: IoTLabViewProps) {
         <p className="text-sm text-soc-muted">{t("iot.description")}</p>
       </header>
 
-      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
         <section className="card h-full space-y-4 p-5">
           <CardTitle title={t("iot.gatewaySummary")} Icon={ServerIcon} />
           <div className="space-y-2 text-xs">
@@ -268,13 +268,36 @@ export function IoTLabView({ ledState }: IoTLabViewProps) {
         </section>
 
         <section className="card h-full p-5">
+          <CardTitle title={t("iot.circuitPanel")} Icon={DeviceIcon} className="mb-4" />
+          <div className="mb-4 flex gap-2" role="tablist" aria-label={t("iot.circuitPanel")}>
+            <TabButton
+              active={tab === TAB.CIRCUIT}
+              label={t("iot.circuitView")}
+              onClick={() => setTab(TAB.CIRCUIT)}
+            />
+            <TabButton
+              active={tab === TAB.JSON}
+              label={t("iot.deviceStateJson")}
+              onClick={() => setTab(TAB.JSON)}
+            />
+          </div>
+          {tab === TAB.CIRCUIT ? (
+            <IoTCircuit led={led} />
+          ) : (
+            <pre className="surface-inset max-h-80 overflow-auto rounded-lg p-4 font-mono text-xs">
+              {JSON.stringify(lab?.snapshot ?? devices, null, 2)}
+            </pre>
+          )}
+        </section>
+
+        <section className="card h-full p-5">
           <CardTitle
             title={t("iot.quickActions")}
             description={t("iot.quickActionsDescription")}
             Icon={PowerIcon}
             className="mb-4"
           />
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {QUICK_ACTIONS.map((action) => (
               <QuickActionButton
                 key={action.id}
@@ -287,29 +310,6 @@ export function IoTLabView({ ledState }: IoTLabViewProps) {
           </div>
         </section>
       </div>
-
-      <section className="card p-5">
-        <CardTitle title={t("iot.circuitPanel")} Icon={DeviceIcon} className="mb-4" />
-        <div className="mb-4 flex gap-2" role="tablist" aria-label={t("iot.circuitPanel")}>
-          <TabButton
-            active={tab === TAB.CIRCUIT}
-            label={t("iot.circuitView")}
-            onClick={() => setTab(TAB.CIRCUIT)}
-          />
-          <TabButton
-            active={tab === TAB.JSON}
-            label={t("iot.deviceStateJson")}
-            onClick={() => setTab(TAB.JSON)}
-          />
-        </div>
-        {tab === TAB.CIRCUIT ? (
-          <IoTCircuit led={led} />
-        ) : (
-          <pre className="surface-inset max-h-80 overflow-auto rounded-lg p-4 font-mono text-xs">
-            {JSON.stringify(lab?.snapshot ?? devices, null, 2)}
-          </pre>
-        )}
-      </section>
 
       <section>
         <CardTitle title={t("iot.connectedDevices")} Icon={IoTLabIcon} className="mb-3" />
