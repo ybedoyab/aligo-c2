@@ -117,4 +117,57 @@ export function LedgerIcon(props: IconProps) {
   );
 }
 
+export function OperatorIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="4" width="18" height="12" rx="2" />
+      <path d="M8 20h8M12 16v4" />
+      <path d="m8 10 2 2 5-5" />
+    </Icon>
+  );
+}
+
+export function ServerIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="4" y="3" width="16" height="7" rx="2" />
+      <rect x="4" y="14" width="16" height="7" rx="2" />
+      <path d="M8 6.5h.01M8 17.5h.01M12 6.5h5M12 17.5h5" />
+    </Icon>
+  );
+}
+
+export function BlockchainIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m12 3 7 4-7 4-7-4 7-4Z" />
+      <path d="m5 12 7 4 7-4M5 17l7 4 7-4" />
+    </Icon>
+  );
+}
+export function CompletedTasksIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m8 12 2.5 2.5L16 9" />
+    </Icon>
+  );
+}
+
+export function FailedTasksIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m9 9 6 6M15 9l-6 6" />
+    </Icon>
+  );
+}
+
+export function PlayIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m9 7 8 5-8 5V7Z" fill="currentColor" stroke="none" />
+    </Icon>
+  );
+}
 export type NavIcon = typeof DashboardIcon;
