@@ -1,0 +1,29 @@
+# Copy to terraform.tfvars and fill in your values.
+# terraform.tfvars is git-ignored (it may hold secrets).
+
+# REQUIRED: your GCP project ID.
+project_id = "my-gcp-project"
+
+# Where to deploy.
+region = "us-central1"
+zone   = "us-central1-a"
+
+# Push your latest code to this branch before `terraform apply` — the VM clones it.
+repo_url    = "https://github.com/ybedoyab/aligo-c2.git"
+repo_branch = "main"
+
+# Lab auth token nodes present to the server. Change it from the default.
+node_shared_token = "change-me-lab-token"
+
+# Lock SSH to your own IP (find it with: curl ifconfig.me). 0.0.0.0/0 = open to all.
+# ssh_source_ranges = ["203.0.113.4/32"]
+
+# Restrict who can reach the dashboard/API if you like.
+# app_source_ranges = ["0.0.0.0/0"]
+
+# VM size. e2-standard-2 (2 vCPU / 8 GB) builds the images comfortably.
+# machine_type = "e2-standard-2"
+
+# --- Optional AI agent ------------------------------------------------------
+# enable_agent      = true
+# anthropic_api_key = "sk-ant-..."

@@ -1,0 +1,14 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# Local variable files (may contain secrets) — keep the example committed
+*.tfvars
+!terraform.tfvars.example
+
+# Plan output
+*.tfplan

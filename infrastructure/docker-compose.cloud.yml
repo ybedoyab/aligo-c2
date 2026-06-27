@@ -1,0 +1,39 @@
+# Cloud override for the base docker-compose.yml.
+#
+# Used by the VM startup script:
+#   docker compose -f docker-compose.yml -f infrastructure/docker-compose.cloud.yml up -d --build
+#
+# It injects the VM's public IP into the frontend build (the API URL is baked at
+# build time and the browser talks to the host-mapped ports), fixes the server's
+# CORS origin, and adds the optional AI agent under the `agent` compose profile.
+#
+# Values come from the .env the startup script renders at the repo root:
+#   PUBLIC_API_URL, PUBLIC_FRONTEND_URL, PUBLIC_AGENT_URL, ANTHROPIC_API_KEY.
+
+services:
+  frontend:
+    build:
+      args:
+        VITE_API_URL: ${PUBLIC_API_URL:-http://localhost:8000}
+        VITE_AGENT_URL: ${PUBLIC_AGENT_URL:-}
+
+  server:
+    environment:
+      - FRONTEND_URL=${PUBLIC_FRONTEND_URL:-http://localhost:5173}
+
+  # Optional AI orchestrator. Only started when the `agent` profile is active
+  # (the startup script adds `--profile agent` when enable_agent = true).
+  agent:
+    build:
+      context: ./agents/orchestrator
+    container_name: aligo-agent
+    profiles: ["agent"]
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - C2_BASE_URL=http://server:8000
+      - C2_WS_URL=ws://server:8000/ws/operator
+      - C2_VERIFY_TLS=false
+    ports:
+      - "8100:8100"
+    depends_on:
+      - server
