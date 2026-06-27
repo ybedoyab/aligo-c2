@@ -306,4 +306,35 @@ export function CameraIcon(props: IconProps) {
     </Icon>
   );
 }
+export function DownloadIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
+    </Icon>
+  );
+}
+
+export function PlusIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 5v14M5 12h14" />
+    </Icon>
+  );
+}
+
+export function SaveIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M5 3h12l2 2v16H5V3Z" />
+      <path d="M8 3v6h8V3M8 21v-7h8v7" />
+    </Icon>
+  );
+}
+export function HammerIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m14 5 5 5M12.5 6.5l3-3 5 5-3 3M13 9 4 18l2 2 9-9" />
+    </Icon>
+  );
+}
 export type NavIcon = typeof DashboardIcon;

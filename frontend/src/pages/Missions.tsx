@@ -1,19 +1,51 @@
 import { useState } from "react";
 import { api } from "../api/client";
+import { CardTitle } from "../components/CardTitle";
+import { StatusBadge } from "../components/HealthBadge";
+import {
+  BlockchainIcon,
+  CompletedTasksIcon,
+  ChevronDownIcon,
+  ConsoleIcon,
+  DownloadIcon,
+  FailedTasksIcon,
+  GaugeIcon,
+  HammerIcon,
+  LedgerIcon,  PlayIcon,  SaveIcon,
+  type NavIcon,
+} from "../components/icons";
 import { MissionBuilder } from "../components/MissionBuilder";
 import { ResultViewer } from "../components/ResultViewer";
 import { TaskConsole } from "../components/TaskConsole";
 import { TaskEvidenceModal } from "../components/TaskEvidenceModal";
-import { StatusBadge } from "../components/HealthBadge";
 import { useI18n } from "../i18n";
 import { useC2 } from "../store";
-import type { Mission } from "../types";
+import type { Mission, MissionStatus } from "../types";
 import { downloadMissionReport } from "../utils/missionReport";
 
-function ExportButtons({ missionId, disabled }: { missionId: string; disabled?: boolean }) {
+const NODE_STATUS = {
+  ONLINE: "online",
+} as const;
+const EXPORT_FORMAT = {
+  JSON: "json",
+  MARKDOWN: "markdown",
+} as const;
+const CARD_ANIMATION_DELAY_MS = 65;
+const MISSION_STATUS_ICON: Record<MissionStatus, NavIcon> = {
+  draft: SaveIcon,
+  running: PlayIcon,
+  completed: CompletedTasksIcon,
+  failed: FailedTasksIcon,
+  partially_failed: FailedTasksIcon,
+};
+
+type ExportFormat = (typeof EXPORT_FORMAT)[keyof typeof EXPORT_FORMAT];
+
+function ExportButtons({ missionId, disabled = false }: { missionId: string; disabled?: boolean }) {
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
-  const run = async (format: "json" | "markdown") => {
+
+  const run = async (format: ExportFormat) => {
     setBusy(true);
     try {
       await downloadMissionReport(missionId, format);
@@ -21,47 +53,58 @@ function ExportButtons({ missionId, disabled }: { missionId: string; disabled?: 
       setBusy(false);
     }
   };
+
   const isDisabled = disabled || busy;
   return (
     <>
-      <button className="btn-ghost text-xs" disabled={isDisabled} onClick={() => run("json")}>
+      <button
+        type="button"
+        className="btn-ghost text-xs"
+        disabled={isDisabled}
+        onClick={() => void run(EXPORT_FORMAT.JSON)}
+      >
+        <DownloadIcon className="h-3.5 w-3.5" />
         {t("common.exportJson")}
       </button>
-      <button className="btn-ghost text-xs" disabled={isDisabled} onClick={() => run("markdown")}>
+      <button
+        type="button"
+        className="btn-ghost text-xs"
+        disabled={isDisabled}
+        onClick={() => void run(EXPORT_FORMAT.MARKDOWN)}
+      >
+        <DownloadIcon className="h-3.5 w-3.5" />
         {t("common.exportMd")}
       </button>
     </>
   );
 }
 
-function MissionRow({
-  mission,
-  onlineIds,
-  onChanged,
-}: {
+interface MissionCardProps {
   mission: Mission;
   onlineIds: string[];
   onChanged: () => void;
-}) {
+  animationDelayMs: number;
+}
+
+function MissionCard({ mission, onlineIds, onChanged, animationDelayMs }: MissionCardProps) {
   const { t, status, translateError } = useI18n();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [dryRun, setDryRun] = useState<string | null>(null);
+  const targets = mission.target_node_ids.length ? mission.target_node_ids : onlineIds;
+  const MissionStatusIcon = MISSION_STATUS_ICON[mission.status];
 
   const dryRunMission = async () => {
     setBusy(true);
     setError("");
     setDryRun(null);
     try {
-      const targets = mission.target_node_ids.length
-        ? mission.target_node_ids
-        : onlineIds;
       const report = await api.dryRunMission(mission.id, targets);
       setDryRun(
         `${status(report.ready ? "READY" : "BLOCKED")} — ${report.summary} (${t("common.toDispatch", { count: report.tasks_to_dispatch })})`
       );
-    } catch (e) {
-      setError(translateError((e as Error).message));
+    } catch (caughtError) {
+      setError(translateError((caughtError as Error).message));
     } finally {
       setBusy(false);
     }
@@ -71,115 +114,140 @@ function MissionRow({
     setBusy(true);
     setError("");
     try {
-      const targets = mission.target_node_ids.length
-        ? mission.target_node_ids
-        : onlineIds;
       if (targets.length === 0) throw new Error(t("errors.noNodesOnline"));
       await api.startMission(mission.id, targets);
       onChanged();
-    } catch (e) {
-      setError(translateError((e as Error).message));
+    } catch (caughtError) {
+      setError(translateError((caughtError as Error).message));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="card p-4 flex flex-col gap-3">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-white">{mission.name}</span>
-          {mission.is_predefined && (
-            <span className="text-[10px] uppercase tracking-wide text-soc-accent2">
-              {t("common.preset")}
-            </span>
-          )}
-          <StatusBadge status={mission.status} />
+    <article
+      className="card group relative flex animate-slide-up flex-col gap-4 overflow-hidden p-4"
+      style={{ animationDelay: `${animationDelayMs}ms`, animationFillMode: "both" }}
+    >
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-soc-brand/70 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+      <div className="flex items-start gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-soc-brand/30 bg-soc-brand/10 text-soc-brand transition-transform group-hover:scale-105">
+          <MissionStatusIcon className="h-5 w-5" />
         </div>
-        <div className="text-xs text-soc-muted mt-0.5">{mission.description}</div>
-        <div className="text-[11px] text-soc-muted font-mono mt-1 break-words">
-          {t("common.steps")}: {mission.steps.map((s) => s.plugin).join(" → ")}
-        </div>
-        {mission.merkle_root && (
-          <div className="text-[11px] text-soc-accent font-mono mt-1 break-all">
-            {t("common.merkleRoot")}: {mission.merkle_root.slice(0, 16)}… ·{" "}
-            {status(mission.merkle_root_status ?? "unknown")}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-medium text-white">{mission.name}</h3>
+            {mission.is_predefined ? (
+              <span className="text-[10px] uppercase tracking-wide text-soc-accent2">
+                {t("common.preset")}
+              </span>
+            ) : null}
+            <StatusBadge status={mission.status} />
           </div>
-        )}
-        {dryRun && <div className="text-xs text-soc-warn mt-2">{dryRun}</div>}
-        {error && <div className="text-xs text-soc-err mt-2">{error}</div>}
+          <p className="mt-1 text-xs leading-relaxed text-soc-muted">{mission.description}</p>
+        </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 pt-3 border-t border-soc-border">
-        <button className="btn-ghost text-xs" onClick={dryRunMission} disabled={busy}>
+      <div>
+        <div className="mb-2 flex items-center gap-2 text-[11px] text-soc-muted">
+          <ConsoleIcon className="h-3.5 w-3.5" />
+          {t("common.steps")}
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {mission.steps.map((step, index) => (
+            <span
+              key={`${mission.id}-${index}-${step.plugin}`}
+              className="rounded-md border border-soc-borderSubtle bg-soc-bg/50 px-2 py-1 font-mono text-[10px] text-soc-accent"
+            >
+              {index + 1}. {step.plugin}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {mission.merkle_root ? (
+        <div className="flex items-start gap-2 rounded-lg border border-soc-accent2/20 bg-soc-accent2/5 p-2.5 text-[11px] text-soc-accent2">
+          <BlockchainIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span className="break-all font-mono">
+            {t("common.merkleRoot")}: {mission.merkle_root.slice(0, 16)}… ·{" "}
+            {status(mission.merkle_root_status ?? "unknown")}
+          </span>
+        </div>
+      ) : null}
+      {dryRun ? <div className="text-xs text-soc-warn">{dryRun}</div> : null}
+      {error ? <div className="text-xs text-soc-err">{error}</div> : null}
+
+      <div className="mt-auto flex flex-wrap gap-2 border-t border-soc-border pt-3">
+        <button type="button" className="btn-ghost text-xs" onClick={() => void dryRunMission()} disabled={busy}>
+          <GaugeIcon className="h-3.5 w-3.5" />
           {t("missions.dryRun")}
         </button>
-        <button className="btn-primary text-xs" onClick={start} disabled={busy}>
+        <button type="button" className="btn-primary text-xs" onClick={() => void start()} disabled={busy}>
+          <PlayIcon className={`h-3.5 w-3.5 ${busy ? "animate-pulse-soft" : ""}`} />
           {busy ? t("common.starting") : t("common.run")}
         </button>
         <ExportButtons missionId={mission.id} disabled={busy} />
       </div>
-    </div>
+    </article>
   );
 }
 
 export function Missions() {
   const { t } = useI18n();
   const { missions, nodes, tasks, results, refreshAll } = useC2();
-  const onlineIds = nodes.filter((a) => a.status === "online").map((a) => a.id);
+  const onlineIds = nodes
+    .filter((node) => node.status === NODE_STATUS.ONLINE)
+    .map((node) => node.id);
   const [evidenceTaskId, setEvidenceTaskId] = useState<string | null>(null);
   const [builderOpen, setBuilderOpen] = useState(false);
 
   return (
     <div className="space-y-6">
-      <div>
+      <header>
         <h1 className="text-xl font-semibold text-white">{t("missions.title")}</h1>
         <p className="text-sm text-soc-muted">{t("missions.description")}</p>
-      </div>
+      </header>
 
-      <div className="card-static overflow-hidden">
+      <section className="card-static overflow-hidden">
         <button
           type="button"
-          className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left row-hover transition-all duration-200"
+          className="row-hover flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-all duration-200"
           onClick={() => setBuilderOpen((open) => !open)}
           aria-expanded={builderOpen}
         >
-          <span className="text-sm font-semibold text-white">{t("missions.buildMission")}</span>
-          <svg
-            className={`h-4 w-4 shrink-0 text-soc-muted transition-transform ${
-              builderOpen ? "rotate-180" : ""
-            }`}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            aria-hidden
-          >
-            <path d="M6 9l6 6 6-6" />
-          </svg>
+          <span className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-soc-brand/30 bg-soc-brand/10 text-soc-brand">
+              <HammerIcon className="h-4 w-4" />
+            </span>
+            <span className="text-sm font-semibold text-white">{t("missions.buildMission")}</span>
+          </span>
+          <ChevronDownIcon
+            className={`h-4 w-4 shrink-0 text-soc-muted transition-transform ${builderOpen ? "rotate-180" : ""}`}
+          />
         </button>
-        {builderOpen && (
-          <div className="border-t border-soc-border p-4 sm:p-5">
+        {builderOpen ? (
+          <div className="animate-slide-up border-t border-soc-border p-4 sm:p-5">
             <MissionBuilder nodes={nodes} onChanged={refreshAll} embedded />
           </div>
-        )}
-      </div>
+        ) : null}
+      </section>
 
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-white">{t("missions.library")}</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {missions.map((m) => (
-            <MissionRow
-              key={m.id}
-              mission={m}
+      <section>
+        <CardTitle title={t("missions.library")} Icon={LedgerIcon} className="mb-3" />
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {missions.map((mission, index) => (
+            <MissionCard
+              key={mission.id}
+              mission={mission}
               onlineIds={onlineIds}
               onChanged={refreshAll}
+              animationDelayMs={index * CARD_ANIMATION_DELAY_MS}
             />
           ))}
         </div>
-      </div>
+      </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+      <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
         <TaskConsole tasks={tasks.slice(0, 30)} onOpenEvidence={setEvidenceTaskId} />
         <ResultViewer
           results={results.slice(0, 15)}

@@ -1,30 +1,35 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { useI18n } from "../i18n";
-import { Select } from "./Select";
+import { CardTitle } from "./CardTitle";
 import {
-  ALLOWED_PLUGINS,
-  type Node,
-  type MissionStep,
-  type PluginName,
-} from "../types";
+  CloseIcon,
+  ConsoleIcon,
+  DeviceIcon,
+  MissionsIcon,
+  NodesIcon,
+  PlayIcon,
+  PlusIcon,
+  SaveIcon,
+} from "./icons";
+import { Select } from "./Select";
+import { ALLOWED_PLUGINS, type MissionStep, type Node, type PluginName } from "../types";
 
-interface Props {
-  nodes: Node[];
-  onChanged: () => void;
-  embedded?: boolean;
-}
+const EMPTY_ARGUMENTS = "{}";
+const DEFAULT_PLUGIN: PluginName = "health_check";
+const ADDED_STEP_PLUGIN: PluginName = "system_info";
+const STEP_ANIMATION_DELAY_MS = 45;
 
 const DEFAULT_ARGS: Partial<Record<PluginName, string>> = {
-  system_info: "{}",
-  health_check: "{}",
+  system_info: EMPTY_ARGUMENTS,
+  health_check: EMPTY_ARGUMENTS,
   echo: '{"text": "ping"}',
   list_lab_directory: '{"path": "."}',
-  network_info: "{}",
+  network_info: EMPTY_ARGUMENTS,
   allowed_command: '{"command": "whoami"}',
-  gateway_health: "{}",
-  list_devices: "{}",
-  get_gateway_snapshot: "{}",
+  gateway_health: EMPTY_ARGUMENTS,
+  list_devices: EMPTY_ARGUMENTS,
+  get_gateway_snapshot: EMPTY_ARGUMENTS,
   read_temperature: '{"device_id": "temp-001"}',
   read_humidity: '{"device_id": "humidity-001"}',
   read_motion: '{"device_id": "motion-001"}',
@@ -35,168 +40,208 @@ const DEFAULT_ARGS: Partial<Record<PluginName, string>> = {
   led_set_brightness: '{"device_id": "led-001", "brightness": 50}',
 };
 
+interface MissionBuilderProps {
+  nodes: Node[];
+  onChanged: () => void;
+  embedded?: boolean;
+}
+
 interface DraftStep {
+  id: string;
   plugin: PluginName;
   argsText: string;
 }
 
-export function MissionBuilder({ nodes, onChanged, embedded }: Props) {
+function createDraftStep(plugin: PluginName): DraftStep {
+  return {
+    id: crypto.randomUUID(),
+    plugin,
+    argsText: DEFAULT_ARGS[plugin] ?? EMPTY_ARGUMENTS,
+  };
+}
+
+export function MissionBuilder({ nodes, onChanged, embedded = false }: MissionBuilderProps) {
   const { t, translateError } = useI18n();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [steps, setSteps] = useState<DraftStep[]>([
-    { plugin: "health_check", argsText: "{}" },
-  ]);
+  const [steps, setSteps] = useState<DraftStep[]>(() => [createDraftStep(DEFAULT_PLUGIN)]);
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    setName((prev) => (prev === "" ? t("missions.customMission") : prev));
+    setName((current) => (current === "" ? t("missions.customMission") : current));
   }, [t]);
 
-  const toggleNode = (id: string) =>
-    setSelected((prev) =>
-      prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]
+  const toggleNode = (id: string) => {
+    setSelected((current) =>
+      current.includes(id) ? current.filter((nodeId) => nodeId !== id) : [...current, id]
     );
+  };
 
-  const addStep = () =>
-    setSteps((prev) => [...prev, { plugin: "system_info", argsText: "{}" }]);
+  const addStep = () => setSteps((current) => [...current, createDraftStep(ADDED_STEP_PLUGIN)]);
 
-  const updateStep = (idx: number, patch: Partial<DraftStep>) =>
-    setSteps((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
+  const updateStep = (id: string, patch: Partial<DraftStep>) => {
+    setSteps((current) =>
+      current.map((step) => (step.id === id ? { ...step, ...patch } : step))
+    );
+  };
 
-  const removeStep = (idx: number) =>
-    setSteps((prev) => prev.filter((_, i) => i !== idx));
+  const removeStep = (id: string) => {
+    setSteps((current) => current.filter((step) => step.id !== id));
+  };
 
   const buildSteps = (): MissionStep[] =>
-    steps.map((s) => ({
-      plugin: s.plugin,
-      args: s.argsText.trim() ? JSON.parse(s.argsText) : {},
+    steps.map((step) => ({
+      plugin: step.plugin,
+      args: step.argsText.trim() ? JSON.parse(step.argsText) : {},
     }));
 
   const submit = async (run: boolean) => {
     setBusy(true);
     setError("");
     try {
-      const parsedSteps = buildSteps();
+      if (run && selected.length === 0) throw new Error(t("errors.selectNodeToRun"));
       const mission = await api.createMission({
         name,
         description,
-        steps: parsedSteps,
+        steps: buildSteps(),
         target_node_ids: selected,
       });
-      if (run) {
-        if (selected.length === 0) {
-          throw new Error(t("errors.selectNodeToRun"));
-        }
-        await api.startMission(mission.id, selected);
-      }
+      if (run) await api.startMission(mission.id, selected);
       onChanged();
-    } catch (e) {
-      setError(translateError((e as Error).message));
+    } catch (caughtError) {
+      setError(translateError((caughtError as Error).message));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className={embedded ? "flex flex-col gap-4" : "card p-5 flex flex-col gap-4"}>
-      {!embedded && (
-        <h3 className="text-sm font-semibold text-white">{t("missions.buildMission")}</h3>
-      )}
+    <div className={embedded ? "flex flex-col gap-5" : "card flex flex-col gap-5 p-5"}>
+      {!embedded ? <CardTitle title={t("missions.buildMission")} Icon={MissionsIcon} /> : null}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <label className="flex flex-col gap-1 text-xs text-soc-muted">
-          {t("missions.name")}
-          <input
-            className="input"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-soc-muted">
-          {t("nodeDetail.description")}
-          <input
-            className="input"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </label>
-      </div>
+      <section>
+        <div className="mb-3 flex items-center gap-2 text-xs font-medium text-white">
+          <MissionsIcon className="h-4 w-4 text-soc-brand" />
+          {t("missions.missionDetails")}
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <label className="flex flex-col gap-1 text-xs text-soc-muted">
+            {t("missions.name")}
+            <input className="input" value={name} onChange={(event) => setName(event.target.value)} />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-soc-muted">
+            {t("nodeDetail.description")}
+            <input
+              className="input"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+            />
+          </label>
+        </div>
+      </section>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-soc-muted">{t("missions.stepsPlugins")}</span>
-          <button className="btn-ghost py-1 text-xs" onClick={addStep}>
+      <section>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <span className="flex items-center gap-2 text-xs font-medium text-white">
+            <ConsoleIcon className="h-4 w-4 text-soc-accent" />
+            {t("missions.stepsPlugins")}
+          </span>
+          <button type="button" className="btn-ghost py-1 text-xs" onClick={addStep}>
+            <PlusIcon className="h-3.5 w-3.5" />
             {t("missions.addStep")}
           </button>
         </div>
-        {steps.map((step, idx) => (
-          <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <Select
-              className="w-full sm:max-w-[180px]"
-              buttonClassName="text-xs"
-              value={step.plugin}
-              ariaLabel={t("missions.stepsPlugins")}
-              options={ALLOWED_PLUGINS.map((item) => ({ value: item, label: item }))}
-              onChange={(value) => {
-                const selectedPlugin = value as PluginName;
-                updateStep(idx, {
-                  plugin: selectedPlugin,
-                  argsText: DEFAULT_ARGS[selectedPlugin] ?? "{}",
-                });
-              }}
-            />
-            <input
-              className="input flex-1 font-mono text-xs"
-              value={step.argsText}
-              onChange={(e) => updateStep(idx, { argsText: e.target.value })}
-              placeholder={t("missions.argsPlaceholder")}
-            />
-            <button
-              className="btn-ghost py-1 text-xs"
-              onClick={() => removeStep(idx)}
-              disabled={steps.length === 1}
+        <div className="space-y-2">
+          {steps.map((step, index) => (
+            <div
+              key={step.id}
+              className="flex animate-slide-in-left flex-col gap-2 rounded-lg border border-soc-borderSubtle bg-soc-bg/30 p-2.5 sm:flex-row sm:items-center"
+              style={{ animationDelay: `${index * STEP_ANIMATION_DELAY_MS}ms`, animationFillMode: "both" }}
             >
-              ×
-            </button>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <span className="text-xs text-soc-muted">{t("missions.targetNodes")}</span>
-        <div className="flex flex-wrap gap-2">
-          {nodes.length === 0 && (
-            <span className="text-xs text-soc-muted">{t("missions.noNodesConnected")}</span>
-          )}
-          {nodes.map((a) => (
-            <button
-              key={a.id}
-              onClick={() => toggleNode(a.id)}
-              className={`rounded-lg border px-3 py-1.5 text-xs font-mono transition-colors ${
-                selected.includes(a.id)
-                  ? "border-soc-brand bg-soc-brand/15 text-soc-brand"
-                  : "border-soc-border text-soc-muted hover:border-soc-brand"
-              }`}
-            >
-              {a.id}
-            </button>
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-soc-accent/30 bg-soc-accent/10 font-mono text-xs text-soc-accent">
+                {index + 1}
+              </span>
+              <Select
+                className="w-full sm:max-w-[180px]"
+                buttonClassName="text-xs"
+                value={step.plugin}
+                ariaLabel={t("missions.stepPlugin", { number: index + 1 })}
+                options={ALLOWED_PLUGINS.map((plugin) => ({ value: plugin, label: plugin }))}
+                onChange={(value) => {
+                  const plugin = value as PluginName;
+                  updateStep(step.id, {
+                    plugin,
+                    argsText: DEFAULT_ARGS[plugin] ?? EMPTY_ARGUMENTS,
+                  });
+                }}
+              />
+              <input
+                className="input flex-1 font-mono text-xs"
+                value={step.argsText}
+                onChange={(event) => updateStep(step.id, { argsText: event.target.value })}
+                placeholder={t("missions.argsPlaceholder")}
+              />
+              <button
+                type="button"
+                className="icon-btn self-end sm:self-auto"
+                onClick={() => removeStep(step.id)}
+                disabled={steps.length === 1}
+                aria-label={t("missions.removeStep", { number: index + 1 })}
+              >
+                <CloseIcon className="h-4 w-4" />
+              </button>
+            </div>
           ))}
         </div>
-      </div>
+      </section>
 
-      {error && <div className="text-xs text-soc-err">{error}</div>}
+      <section>
+        <div className="mb-3 flex items-center gap-2 text-xs font-medium text-white">
+          <NodesIcon className="h-4 w-4 text-soc-ok" />
+          {t("missions.targetNodes")}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {nodes.length === 0 ? (
+            <span className="text-xs text-soc-muted">{t("missions.noNodesConnected")}</span>
+          ) : null}
+          {nodes.map((node) => {
+            const isSelected = selected.includes(node.id);
+            return (
+              <button
+                key={node.id}
+                type="button"
+                onClick={() => toggleNode(node.id)}
+                aria-pressed={isSelected}
+                className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 font-mono text-xs transition-all hover:-translate-y-0.5 ${getNodeButtonClass(isSelected)}`}
+              >
+                <DeviceIcon className="h-3.5 w-3.5" />
+                {node.id}
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
-      <div className="flex flex-col sm:flex-row gap-2">
-        <button className="btn-ghost" disabled={busy} onClick={() => submit(false)}>
+      {error ? <div className="text-xs text-soc-err">{error}</div> : null}
+
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button type="button" className="btn-ghost" disabled={busy} onClick={() => void submit(false)}>
+          <SaveIcon className="h-4 w-4" />
           {t("missions.saveDraft")}
         </button>
-        <button className="btn-primary" disabled={busy} onClick={() => submit(true)}>
+        <button type="button" className="btn-primary" disabled={busy} onClick={() => void submit(true)}>
+          <PlayIcon className={`h-4 w-4 ${busy ? "animate-pulse-soft" : ""}`} />
           {busy ? t("common.working") : t("missions.createAndRun")}
         </button>
       </div>
     </div>
   );
+}
+
+function getNodeButtonClass(selected: boolean) {
+  return selected
+    ? "border-soc-brand bg-soc-brand/15 text-soc-brand"
+    : "border-soc-border text-soc-muted hover:border-soc-brand";
 }
