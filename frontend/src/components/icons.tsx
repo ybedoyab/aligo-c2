@@ -255,4 +255,55 @@ export function ChevronDownIcon(props: IconProps) {
     </Icon>
   );
 }
+export function PowerIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 3v9M7.1 5.8a8 8 0 1 0 9.8 0" />
+    </Icon>
+  );
+}
+
+export function ThermometerIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M10 14.8V5a2 2 0 0 1 4 0v9.8a4 4 0 1 1-4 0Z" />
+      <path d="M12 8v8" />
+    </Icon>
+  );
+}
+
+export function DropletIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 3S6 10 6 15a6 6 0 0 0 12 0c0-5-6-12-6-12Z" />
+    </Icon>
+  );
+}
+
+export function MotionIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="2" />
+      <path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.9 4.9a10 10 0 0 0 0 14.2M19.1 4.9a10 10 0 0 1 0 14.2" />
+    </Icon>
+  );
+}
+
+export function SunIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </Icon>
+  );
+}
+
+export function CameraIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 7h4l1.5-2h5L16 7h4v12H4V7Z" />
+      <circle cx="12" cy="13" r="3" />
+    </Icon>
+  );
+}
 export type NavIcon = typeof DashboardIcon;
