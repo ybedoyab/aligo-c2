@@ -92,7 +92,7 @@ export function Layout() {
       )}
 
       <aside
-        className={`app-sidebar fixed inset-y-0 left-0 z-50 flex w-60 max-w-[85vw] shrink-0 flex-col transition-transform duration-300 ease-out lg:static lg:h-screen lg:max-w-none lg:translate-x-0 ${
+        className={`app-sidebar fixed inset-y-0 left-0 z-50 flex h-screen w-60 max-w-[85vw] shrink-0 flex-col overflow-hidden transition-transform duration-300 ease-out lg:max-w-none ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:hidden"
         }`}
       >
@@ -178,7 +178,11 @@ export function Layout() {
         </div>
       </aside>
 
-      <main className="flex min-h-screen min-w-0 flex-1 flex-col">
+      <main
+        className={`flex min-h-screen min-w-0 flex-1 flex-col transition-[margin] duration-300 ease-out ${
+          sidebarOpen ? "lg:ml-60" : ""
+        }`}
+      >
         <header className="app-header sticky top-0 z-30 flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3">
           <button
             type="button"
