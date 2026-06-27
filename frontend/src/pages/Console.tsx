@@ -10,6 +10,7 @@ import {
 } from "../types";
 import { StatusBadge } from "../components/HealthBadge";
 import { TaskEvidenceModal } from "../components/TaskEvidenceModal";
+import { AgentChat } from "../components/AgentChat";
 
 const DEFAULT_ARGS: Partial<Record<PluginName, string>> = {
   system_info: "{}",
@@ -218,70 +219,76 @@ export function Console() {
         <p className="text-sm text-soc-muted">{t("console.description")}</p>
       </div>
 
-      <div className="card p-5 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <label className="flex flex-col gap-1 text-xs text-soc-muted">
-            {t("console.target")}
-            <select className="input" value={target} onChange={(e) => setTarget(e.target.value)}>
-              <option value="all">
-                {t("console.allOnline", { count: onlineNodes.length })}
-              </option>
-              {nodes.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.id} ({status(a.status)})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-soc-muted">
-            {t("console.plugin")}
-            <select
-              className="input"
-              value={plugin}
-              onChange={(e) => {
-                const p = e.target.value as PluginName;
-                setPlugin(p);
-                setArgsText(DEFAULT_ARGS[p] ?? "{}");
-              }}
-            >
-              {ALLOWED_PLUGINS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="flex items-end">
-            <button className="btn-primary w-full" onClick={runForm} disabled={busy}>
-              {busy ? t("common.running") : t("common.run")}
-            </button>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <div className="space-y-6">
+          <div className="card p-5 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <label className="flex flex-col gap-1 text-xs text-soc-muted">
+                {t("console.target")}
+                <select className="input" value={target} onChange={(e) => setTarget(e.target.value)}>
+                  <option value="all">
+                    {t("console.allOnline", { count: onlineNodes.length })}
+                  </option>
+                  {nodes.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.id} ({status(a.status)})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-xs text-soc-muted">
+                {t("console.plugin")}
+                <select
+                  className="input"
+                  value={plugin}
+                  onChange={(e) => {
+                    const p = e.target.value as PluginName;
+                    setPlugin(p);
+                    setArgsText(DEFAULT_ARGS[p] ?? "{}");
+                  }}
+                >
+                  {ALLOWED_PLUGINS.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex items-end">
+                <button className="btn-primary w-full" onClick={runForm} disabled={busy}>
+                  {busy ? t("common.running") : t("common.run")}
+                </button>
+              </div>
+            </div>
+            <label className="flex flex-col gap-1 text-xs text-soc-muted">
+              {t("console.argumentsJson")}
+              <textarea
+                className="input font-mono text-xs min-h-[80px]"
+                value={argsText}
+                onChange={(e) => setArgsText(e.target.value)}
+              />
+            </label>
+          </div>
+
+          <div className="card p-4">
+            <div className="text-xs text-soc-muted mb-2">{t("console.terminalCommands")}</div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                className="input flex-1 font-mono text-sm min-w-0"
+                placeholder={t("console.placeholder")}
+                value={cmdLine}
+                onChange={(e) => setCmdLine(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && runCmdLine()}
+              />
+              <button className="btn-ghost shrink-0" onClick={runCmdLine} disabled={busy}>
+                {t("common.execute")}
+              </button>
+            </div>
+            {cmdMsg && <div className="mt-2 text-xs text-soc-muted">{cmdMsg}</div>}
           </div>
         </div>
-        <label className="flex flex-col gap-1 text-xs text-soc-muted">
-          {t("console.argumentsJson")}
-          <textarea
-            className="input font-mono text-xs min-h-[80px]"
-            value={argsText}
-            onChange={(e) => setArgsText(e.target.value)}
-          />
-        </label>
-      </div>
 
-      <div className="card p-4">
-        <div className="text-xs text-soc-muted mb-2">{t("console.terminalCommands")}</div>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <input
-            className="input flex-1 font-mono text-sm min-w-0"
-            placeholder={t("console.placeholder")}
-            value={cmdLine}
-            onChange={(e) => setCmdLine(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && runCmdLine()}
-          />
-          <button className="btn-ghost shrink-0" onClick={runCmdLine} disabled={busy}>
-            {t("common.execute")}
-          </button>
-        </div>
-        {cmdMsg && <div className="mt-2 text-xs text-soc-muted">{cmdMsg}</div>}
+        <AgentChat />
       </div>
 
       <div className="card-static overflow-hidden">

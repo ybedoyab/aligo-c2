@@ -410,3 +410,49 @@ export interface ConsoleHistoryEntry {
   status: TaskStatus | "dispatching";
   duration_ms?: number;
 }
+
+// --- Agent (AI orchestrator) chat ------------------------------------------
+
+export interface AgentProposedAction {
+  tool: string;
+  args: Record<string, unknown>;
+}
+
+export interface AgentApprovalRequest {
+  type?: string;
+  summary?: string;
+  actions: AgentProposedAction[];
+}
+
+// SSE events emitted by the agent backend (agents/orchestrator/app/main.py).
+export type AgentEvent =
+  | { event: "token"; data: { text: string } }
+  | { event: "tool_call"; data: { tool: string; args: Record<string, unknown> } }
+  | { event: "tool_result"; data: { tool: string; content: string } }
+  | { event: "approval_request"; data: AgentApprovalRequest }
+  | { event: "error"; data: { detail: string } }
+  | { event: "done"; data: { awaiting_approval: boolean } };
+
+export interface AgentHealth {
+  status: string;
+  version: string;
+  model: string;
+  anthropic_key_configured: boolean;
+  c2_base_url: string;
+  c2_reachable: boolean;
+  c2_detail: string;
+  ws_connected: boolean;
+}
+
+export interface AgentToolActivity {
+  id: string;
+  tool: string;
+  args?: Record<string, unknown>;
+  result?: string;
+}
+
+export interface AgentTurn {
+  id: string;
+  role: "operator" | "agent";
+  text: string;
+}

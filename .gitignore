@@ -41,3 +41,5 @@ node/identities/
 demo/reports/*.json
 demo/reports/*.md
 .claude/
+
+contract_abi.json

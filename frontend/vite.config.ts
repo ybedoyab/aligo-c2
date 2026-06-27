@@ -34,6 +34,14 @@ export default defineConfig({
           "/health": { target: backendTarget, secure: false, changeOrigin: true },
           "/docs": { target: backendTarget, secure: false, changeOrigin: true },
           "/openapi.json": { target: backendTarget, secure: false, changeOrigin: true },
+          // Agent (AI orchestrator) backend on :8100 — keeps the browser same-origin
+          // (HTTPS), avoiding mixed-content blocks and CORS. SSE streams through fine.
+          "/agent": {
+            target: "http://127.0.0.1:8100",
+            secure: false,
+            changeOrigin: true,
+            rewrite: (p) => p.replace(/^\/agent/, ""),
+          },
         }
       : undefined,
   },
