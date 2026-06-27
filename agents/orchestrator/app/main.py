@@ -50,10 +50,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Aligo Agent", version=__version__, lifespan=lifespan)
 
-# The agent UI may be served from the React dev server; allow the same dev origins.
+# Allowed browser origins come from settings (CORS_ORIGINS); defaults cover the
+# React dev server, and cloud deploys add the dashboard's public origin.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
