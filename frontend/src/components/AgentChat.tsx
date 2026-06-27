@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { agentHealth, streamChat } from "../api/agentClient";
+import { useI18n } from "../i18n";
 import { useC2 } from "../store";
+import { AgentIcon, ChevronDownIcon, CloseIcon, CompletedTasksIcon, SendIcon } from "./icons";
 import type {
   AgentApprovalRequest,
   AgentEvent,
@@ -18,6 +20,7 @@ function uid(): string {
 
 export function AgentChat() {
   const { refreshAll } = useC2();
+  const { t } = useI18n();
   const sessionId = useMemo(() => uid(), []);
   const [turns, setTurns] = useState<AgentTurn[]>([]);
   const [activity, setActivity] = useState<AgentToolActivity[]>([]);
@@ -30,7 +33,6 @@ export function AgentChat() {
   const [rejectNote, setRejectNote] = useState("");
 
   const streamRef = useRef<HTMLDivElement>(null);
-  // id of the agent turn currently being streamed into
   const liveTurnId = useRef<string | null>(null);
 
   useEffect(() => {
@@ -71,7 +73,6 @@ export function AgentChat() {
           break;
         case "tool_result":
           setActivity((a) => {
-            // attach the result to the most recent matching tool_call without one
             for (let i = a.length - 1; i >= 0; i--) {
               if (a[i].tool === evt.data.tool && a[i].result === undefined) {
                 const copy = a.slice();
@@ -104,8 +105,6 @@ export function AgentChat() {
       liveTurnId.current = null;
       try {
         await streamChat({ session_id: sessionId, ...payload }, { onEvent: handleEvent });
-        // An approved/executed turn may have changed C2 state — refresh the
-        // dashboard data so manual history/nodes/ledger reflect it.
         refreshAll();
       } catch (e) {
         setError((e as Error).message);
@@ -133,136 +132,172 @@ export function AgentChat() {
         ...a,
         {
           id: uid(),
-          tool: approved ? "operator: APPROVED" : "operator: REJECTED",
+          tool: approved ? t("console.agentApproved") : t("console.agentRejected"),
           result: feedback,
         },
       ]);
       void run({ approval: { approved, feedback } });
     },
-    [rejectNote, run]
+    [rejectNote, run, t]
   );
 
   const keyMissing = health && !health.anthropic_key_configured;
 
   return (
-    <div className="card flex flex-col h-full min-h-[520px]">
-      <div className="px-4 py-3 border-b border-soc-border flex items-center justify-between">
-        <div>
-          <div className="text-sm font-semibold text-white">Ask AI</div>
-          <div className="text-xs text-soc-muted">
-            Agent orchestrator · drafts &amp; runs allowlisted missions after your approval
+    <section className="agent-card card flex h-full min-h-[360px] animate-slide-up flex-col lg:min-h-0">
+      <div className="relative flex items-center justify-between gap-3 overflow-hidden border-b border-soc-border px-4 py-3">
+        <span className="agent-header-scan pointer-events-none absolute inset-y-0 w-24 bg-gradient-to-r from-transparent via-soc-accent2/15 to-transparent" aria-hidden="true" />
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="agent-icon-glow relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-soc-accent2/40 bg-soc-accent2/10 text-soc-accent2">
+            <AgentIcon className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-white">{t("console.agentTitle")}</h2>
+            <p className="text-xs text-soc-muted">{t("console.agentDescription")}</p>
           </div>
         </div>
         <span
-          className={`h-2 w-2 rounded-full ${
-            health?.c2_reachable ? "bg-soc-ok" : "bg-soc-err"
-          }`}
-          title={health ? `agent ${health.version} · ${health.model}` : "agent unreachable"}
+          className={`h-2 w-2 shrink-0 rounded-full ${health?.c2_reachable ? "bg-soc-ok animate-pulse-soft" : "bg-soc-err"}`}
+          title={health ? `agent ${health.version} · ${health.model}` : t("console.agentUnavailable")}
         />
       </div>
 
-      {keyMissing && (
-        <div className="px-4 py-2 text-xs text-soc-warn border-b border-soc-border bg-soc-warn/5">
-          ANTHROPIC_API_KEY not configured — add it to <code>.env</code> and restart to enable chat.
+      {keyMissing ? (
+        <div className="border-b border-soc-border bg-soc-warn/5 px-4 py-2 text-xs text-soc-warn">
+          {t("console.agentKeyMissing")} <code>.env</code>
         </div>
-      )}
+      ) : null}
 
-      <div ref={streamRef} className="flex-1 overflow-y-auto p-4 space-y-3">
-        {turns.length === 0 && !busy && (
-          <div className="text-xs text-soc-muted">
-            Try: <em>“Which nodes are online?”</em> or{" "}
-            <em>“Run a health check on every online node.”</em>
+      <div ref={streamRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+        {turns.length === 0 && !busy ? (
+          <div className="rounded-lg border border-dashed border-soc-borderSubtle bg-soc-bg/30 p-3 text-xs text-soc-muted">
+            {t("console.agentTry")}
           </div>
-        )}
-        {turns.map((t) => (
+        ) : null}
+        {turns.map((turn) => (
           <div
-            key={t.id}
+            key={turn.id}
             className={
-              t.role === "operator"
-                ? "ml-8 rounded-lg bg-soc-accent/10 px-3 py-2 text-sm text-white"
-                : "mr-4 text-sm text-slate-200 whitespace-pre-wrap"
+              turn.role === "operator"
+                ? "ml-8 animate-slide-up rounded-lg bg-soc-accent/10 px-3 py-2 text-sm text-white"
+                : "mr-4 animate-fade-in whitespace-pre-wrap text-sm text-slate-200"
             }
           >
-            {t.role === "agent" && (
-              <span className="text-xs text-soc-accent font-semibold block mb-0.5">agent</span>
-            )}
-            {t.text}
+            {turn.role === "agent" ? (
+              <span className="mb-0.5 block text-xs font-semibold text-soc-accent">
+                {t("console.agentLabel")}
+              </span>
+            ) : null}
+            {turn.text}
           </div>
         ))}
 
-        {pending && (
-          <div className="rounded-lg border border-soc-warn/40 bg-soc-warn/5 p-3 space-y-2">
+        {pending ? (
+          <div className="animate-slide-up space-y-2 rounded-lg border border-soc-warn/40 bg-soc-warn/5 p-3">
             <div className="text-xs font-semibold text-soc-warn">
-              {pending.summary ?? "The agent wants to execute the following action(s)."}
+              {pending.summary ?? t("console.agentApprovalSummary")}
             </div>
             <ul className="space-y-1">
-              {pending.actions.map((a, i) => (
-                <li key={i} className="font-mono text-xs text-white">
-                  {a.tool}
-                  <span className="text-soc-muted"> {JSON.stringify(a.args)}</span>
+              {pending.actions.map((action) => (
+                <li
+                  key={`${action.tool}-${JSON.stringify(action.args)}`}
+                  className="font-mono text-xs text-white"
+                >
+                  {action.tool}
+                  <span className="text-soc-muted"> {JSON.stringify(action.args)}</span>
                 </li>
               ))}
             </ul>
             <input
               className="input w-full text-xs"
-              placeholder="optional note (sent on reject)"
+              placeholder={t("console.agentRejectPlaceholder")}
               value={rejectNote}
-              onChange={(e) => setRejectNote(e.target.value)}
+              onChange={(event) => setRejectNote(event.target.value)}
             />
-            <div className="flex gap-2">
-              <button className="btn-primary py-1 text-xs" onClick={() => resolve(true)} disabled={busy}>
-                Approve &amp; run
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn-primary py-1 text-xs"
+                onClick={() => resolve(true)}
+                disabled={busy}
+              >
+                <CompletedTasksIcon className="h-3.5 w-3.5" />
+                {t("console.agentApprove")}
               </button>
-              <button className="btn-ghost py-1 text-xs" onClick={() => resolve(false)} disabled={busy}>
-                Reject
+              <button
+                type="button"
+                className="btn-ghost py-1 text-xs"
+                onClick={() => resolve(false)}
+                disabled={busy}
+              >
+                <CloseIcon className="h-3.5 w-3.5" />
+                {t("console.agentReject")}
               </button>
             </div>
           </div>
-        )}
+        ) : null}
 
-        {busy && !pending && <div className="text-xs text-soc-muted animate-pulse">thinking…</div>}
-        {error && <div className="text-xs text-soc-err">{error}</div>}
+        {busy && !pending ? (
+          <div className="animate-pulse text-xs text-soc-muted">{t("console.agentThinking")}</div>
+        ) : null}
+        {error ? <div className="text-xs text-soc-err">{error}</div> : null}
       </div>
 
-      {activity.length > 0 && (
+      {activity.length > 0 ? (
         <div className="border-t border-soc-border">
           <button
+            type="button"
             className="w-full px-4 py-2 text-left text-xs text-soc-muted hover:text-white"
-            onClick={() => setShowActivity((s) => !s)}
+            onClick={() => setShowActivity((current) => !current)}
           >
-            {showActivity ? "▾" : "▸"} Tool activity ({activity.length})
+            <ChevronDownIcon
+              className={`mr-1 inline h-3.5 w-3.5 transition-transform ${showActivity ? "rotate-180" : ""}`}
+            />
+            {t("console.agentActivity", { count: activity.length })}
           </button>
-          {showActivity && (
-            <div className="max-h-40 overflow-y-auto px-4 pb-3 space-y-1">
-              {activity.map((a) => (
-                <div key={a.id} className="font-mono text-[11px] leading-tight">
-                  <span className="text-soc-accent">{a.tool}</span>
-                  {a.args && <span className="text-soc-muted"> {JSON.stringify(a.args)}</span>}
-                  {a.result && (
-                    <div className="text-soc-muted truncate" title={a.result}>
-                      → {a.result}
+          {showActivity ? (
+            <div className="max-h-40 space-y-1 overflow-y-auto px-4 pb-3">
+              {activity.map((item) => (
+                <div key={item.id} className="font-mono text-[11px] leading-tight">
+                  <span className="text-soc-accent">{item.tool}</span>
+                  {item.args ? (
+                    <span className="text-soc-muted"> {JSON.stringify(item.args)}</span>
+                  ) : null}
+                  {item.result ? (
+                    <div className="truncate text-soc-muted" title={item.result}>
+                      → {item.result}
                     </div>
-                  )}
+                  ) : null}
                 </div>
               ))}
             </div>
-          )}
+          ) : null}
         </div>
-      )}
+      ) : null}
 
-      <div className="p-3 border-t border-soc-border flex gap-2">
+      <div className="flex gap-2 border-t border-soc-border p-3">
         <input
-          className="input flex-1 text-sm"
-          placeholder="Ask the agent…"
+          className="input min-w-0 flex-1 text-sm"
+          placeholder={t("console.agentPlaceholder")}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), send())}
+          onChange={(event) => setInput(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" || event.shiftKey) return;
+            event.preventDefault();
+            send();
+          }}
           disabled={busy && !pending}
         />
-        <button className="btn-primary" onClick={send} disabled={busy || !input.trim()}>
-          Send
+        <button
+          type="button"
+          className="btn-primary shrink-0"
+          onClick={send}
+          disabled={busy || !input.trim()}
+        >
+          <SendIcon className="h-4 w-4" />
+          <span className="hidden sm:inline">{t("console.agentSend")}</span>
         </button>
       </div>
-    </div>
+    </section>
   );
 }

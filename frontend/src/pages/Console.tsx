@@ -12,6 +12,8 @@ import { StatusBadge } from "../components/HealthBadge";
 import { TaskEvidenceModal } from "../components/TaskEvidenceModal";
 import { AgentChat } from "../components/AgentChat";
 import { Select } from "../components/Select";
+import { CardTitle } from "../components/CardTitle";
+import { ConsoleIcon, HistoryIcon, PlayIcon, SendIcon, ShieldIcon } from "../components/icons";
 
 const DEFAULT_ARGS: Partial<Record<PluginName, string>> = {
   system_info: "{}",
@@ -220,9 +222,14 @@ export function Console() {
         <p className="text-sm text-soc-muted">{t("console.description")}</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        <div className="space-y-6">
-          <div className="card p-5 space-y-4">
+      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
+        <div className="space-y-4">
+          <div className="card animate-slide-up space-y-4 p-5">
+            <CardTitle
+              title={t("console.manualDispatch")}
+              description={t("console.manualDispatchDescription")}
+              Icon={ConsoleIcon}
+            />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <label className="flex flex-col gap-1 text-xs text-soc-muted">
                 {t("console.target")}
@@ -256,7 +263,8 @@ export function Console() {
                 />
               </label>
               <div className="flex items-end">
-                <button className="btn-primary w-full" onClick={runForm} disabled={busy}>
+                <button type="button" className="btn-primary w-full" onClick={() => void runForm()} disabled={busy}>
+                  <PlayIcon className={`h-4 w-4 ${busy ? "animate-pulse-soft" : ""}`} />
                   {busy ? t("common.running") : t("common.run")}
                 </button>
               </div>
@@ -281,11 +289,16 @@ export function Console() {
                 onChange={(e) => setCmdLine(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && runCmdLine()}
               />
-              <button className="btn-ghost shrink-0" onClick={runCmdLine} disabled={busy}>
+              <button type="button" className="btn-ghost shrink-0" onClick={() => void runCmdLine()} disabled={busy}>
+                <SendIcon className="h-4 w-4" />
                 {t("common.execute")}
               </button>
             </div>
-            {cmdMsg && <div className="mt-2 text-xs text-soc-muted">{cmdMsg}</div>}
+            {cmdMsg ? (
+              <div className="mt-3 animate-fade-in rounded-lg border border-soc-borderSubtle bg-soc-bg/40 px-3 py-2 text-xs text-soc-muted">
+                {cmdMsg}
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -293,8 +306,8 @@ export function Console() {
       </div>
 
       <div className="card-static overflow-hidden">
-        <div className="panel-header">
-          {t("console.commandHistory")}
+        <div className="border-b border-soc-borderSubtle px-4 py-3">
+          <CardTitle title={t("console.commandHistory")} Icon={HistoryIcon} />
         </div>
         <div className="overflow-x-auto">
         <table className="w-full text-sm min-w-[560px]">
@@ -316,7 +329,7 @@ export function Console() {
               </tr>
             )}
             {history.map((row) => (
-              <tr key={row.id} className="border-b border-soc-borderSubtle/60 row-hover">
+              <tr key={row.id} className="animate-fade-in border-b border-soc-borderSubtle/60 row-hover">
                 <td className="px-4 py-2 text-xs text-soc-muted">
                   {formatTime(row.timestamp)}
                 </td>
@@ -331,6 +344,7 @@ export function Console() {
                       className="btn-ghost py-0.5 text-xs"
                       onClick={() => setEvidenceTaskId(row.task_id)}
                     >
+                      <ShieldIcon className="h-3.5 w-3.5" />
                       {t("common.viewEvidence")}
                     </button>
                   )}

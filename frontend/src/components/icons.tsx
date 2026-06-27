@@ -337,4 +337,30 @@ export function HammerIcon(props: IconProps) {
     </Icon>
   );
 }
+export function AgentIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="4" y="6" width="16" height="13" rx="3" />
+      <path d="M12 3v3M8 11h.01M16 11h.01M8 15h8" />
+    </Icon>
+  );
+}
+
+export function HistoryIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.5" />
+      <path d="M4 4v4.5h4.5M12 8v5l3 2" />
+    </Icon>
+  );
+}
+
+export function SendIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m3 11 18-8-8 18-2-8-8-2Z" />
+      <path d="m11 13 4-4" />
+    </Icon>
+  );
+}
 export type NavIcon = typeof DashboardIcon;
