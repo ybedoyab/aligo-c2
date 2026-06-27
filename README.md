@@ -11,10 +11,11 @@ Plataforma de laboratorio para orquestar nodos, misiones y evidencia de ejecuci�
 
 ```bash
 cp .env.example .env
+# (opcional) pega tu ANTHROPIC_API_KEY en .env para habilitar el chat con el agente IA
 python dev.py
 ```
 
-Eso levanta la aplicación completa: blockchain, contrato, API, dashboard, nodos simulados y gateway IoT. El canal operador↔servidor y nodo↔servidor va cifrado con **TLS/WSS** (certificado autofirmado de laboratorio; el navegador pedirá aceptarlo una vez).
+Eso levanta la aplicación completa: blockchain, contrato, API, **agente IA**, dashboard, nodos simulados y gateway IoT. El canal operador↔servidor y nodo↔servidor va cifrado con **TLS/WSS** (certificado autofirmado de laboratorio; el navegador pedirá aceptarlo una vez).
 
 ```bash
 python dev.py --no-tls    # solo depuración: HTTP/WS sin cifrar
@@ -25,8 +26,11 @@ python dev.py --no-tls    # solo depuración: HTTP/WS sin cifrar
 | Dashboard  | http://localhost:5173        |
 | API        | http://localhost:8000        |
 | API docs   | http://localhost:8000/docs   |
+| Agente IA  | http://localhost:8100/health |
 
 Detener con `Ctrl+C`.
+
+> **Agente IA (Console → Ask AI).** `dev.py` arranca el orquestrador (`agents/orchestrator`) en el puerto 8100 y el dashboard lo consume por proxy. Pega `ANTHROPIC_API_KEY` en `.env` antes de arrancar; sin clave el stack funciona igual y la consola manual sigue operativa, solo se desactiva el chat. El agente solo propone plugins de la allowlist y **ejecuta únicamente tras tu aprobación**. Detalle en [`agents/orchestrator/README.md`](agents/orchestrator/README.md).
 
 ## Guía rápida en la app
 

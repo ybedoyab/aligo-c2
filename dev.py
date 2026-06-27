@@ -30,7 +30,9 @@ import urllib.request
 import uuid
 from pathlib import Path
 
-from lab_tls import ensure_lab_certs
+# NOTE: `lab_tls` pulls in `cryptography`, which is installed into ./venv by
+# install_all(). It is imported lazily (inside the functions that need it) so a
+# fresh launcher/venv can bootstrap dev.py — the top of this file stays stdlib-only.
 
 ROOT = Path(__file__).resolve().parent
 VENV_DIR = ROOT / "venv"
@@ -44,6 +46,7 @@ URLS = {
     "api": "http://localhost:8000",
     "api_docs": "http://localhost:8000/docs",
     "health": "http://localhost:8000/health",
+    "agent": "http://localhost:8100/health",
     "chain_rpc": "http://localhost:8545",
 }
 
@@ -52,12 +55,14 @@ URLS_TLS = {
     "api": "https://127.0.0.1:8000",
     "api_docs": "https://127.0.0.1:8000/docs",
     "health": "https://127.0.0.1:8000/health",
+    "agent": "http://127.0.0.1:8100/health",
     "chain_rpc": "http://localhost:8545",
 }
 
 STACK_PORTS: dict[int, str] = {
     8545: "blockchain",
     8000: "backend",
+    8100: "agent",
     5173: "frontend",
 }
 
@@ -88,6 +93,21 @@ def ensure_venv_python() -> Path:
 
     if Path(sys.executable).resolve() != vp.resolve():
         log("SETUP", f"Using venv Python: {vp}")
+        if os.name == "nt":
+            # Windows os.execv does NOT replace the process in place — it leaves the
+            # original interpreter as a stub, and the console delivers Ctrl+C to that
+            # stub instead of the re-exec'd worker that owns the shutdown handler
+            # (the stack then can't be stopped). Instead, run the venv python as a
+            # child in this same console and wait on it: SIGINT reaches the child
+            # cleanly while this supervisor ignores it and just forwards the exit code.
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
+            child = subprocess.Popen([str(vp), *sys.argv])
+            while True:
+                try:
+                    sys.exit(child.wait())
+                except KeyboardInterrupt:
+                    # Belt-and-suspenders: ignore here too; the child handles shutdown.
+                    continue
         os.execv(str(vp), [str(vp), *sys.argv])
 
     return vp
@@ -133,6 +153,8 @@ def load_env(*, use_tls: bool) -> dict[str, str]:
     env["BLOCKCHAIN_RPC_URL"] = "http://127.0.0.1:8545"
     env.setdefault("NODE_SHARED_TOKEN", "change-me-lab-token")
     if use_tls:
+        from lab_tls import ensure_lab_certs  # lazy: needs cryptography from venv
+
         cert, key = ensure_lab_certs()
         env["SSL_CERTFILE"] = str(cert)
         env["SSL_KEYFILE"] = str(key)
@@ -229,6 +251,7 @@ def install_all(skip: bool) -> None:
     ensure_env_file()
     install_pip(ROOT / "server" / "requirements.txt", "fastapi", "server")
     install_pip(ROOT / "node" / "requirements.txt", "websockets", "node")
+    install_pip(ROOT / "agents" / "orchestrator" / "requirements.txt", "langgraph", "agent")
     install_npm(ROOT / "frontend", "frontend")
     install_npm(ROOT / "blockchain", "blockchain")
 
@@ -730,17 +753,25 @@ def shutdown(*_args: object) -> None:
     if STOPPING:
         return
     STOPPING = True
-    banner("DEV", "Shutting down… (Ctrl+C again to force)")
+    banner("DEV", "Shutting down…")
+    # Kill each managed process AND its child tree. terminate()/kill() only reach
+    # the immediate child; services like vite (→ node), hardhat (→ node) and uvicorn
+    # spawn grandchildren that would otherwise survive and hold ports. On Windows
+    # `taskkill /F /T` (via kill_process_tree) tears down the whole tree at once.
     for _, proc in reversed(PROCS):
         if proc.poll() is None:
-            try:
-                proc.terminate()
-            except (ProcessLookupError, OSError):
-                pass
-    time.sleep(0.8)
-    for _, proc in PROCS:
-        if proc.poll() is None:
-            proc.kill()
+            if os.name == "nt":
+                kill_process_tree(proc.pid)
+            else:
+                try:
+                    proc.terminate()
+                except (ProcessLookupError, OSError):
+                    pass
+    if os.name != "nt":
+        time.sleep(0.8)
+        for _, proc in PROCS:
+            if proc.poll() is None:
+                proc.kill()
     sys.exit(0)
 
 
@@ -750,6 +781,7 @@ def print_urls(node_count: int) -> None:
     print(f"  API           {URLS['api']}")
     print(f"  API docs      {URLS['api_docs']}")
     print(f"  Health        {URLS['health']}")
+    print(f"  Agent         {URLS['agent']}  (Console -> Ask AI)")
     print(f"  Chain RPC     {URLS['chain_rpc']}")
     if node_count > 0:
         transport = "WSS (TLS)" if URLS["api"].startswith("https") else "WebSocket"
@@ -761,6 +793,15 @@ def print_urls(node_count: int) -> None:
 
 def main() -> None:
     global PYTHON
+
+    # Never let a stray non-ASCII char in a log line crash the launcher: on Windows
+    # stdout defaults to cp1252 (esp. when piped), which can't encode chars like
+    # the arrow U+2192 used in some log lines.
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(errors="replace")  # type: ignore[union-attr]
+        except (AttributeError, ValueError):
+            pass
 
     parser = argparse.ArgumentParser(description="Start the full Aligo C2 dev stack")
     parser.add_argument("--skip-install", action="store_true", help="skip dependency install")
@@ -799,6 +840,8 @@ def main() -> None:
     log("SETUP", f"Python: {PYTHON}")
     install_all(args.skip_install)
     if use_tls:
+        from lab_tls import ensure_lab_certs  # lazy: cryptography is now installed in venv
+
         cert_path, key_path = ensure_lab_certs()
         log("SETUP", f"TLS lab cert ready ({cert_path.name})")
     env = venv_env(load_env(use_tls=use_tls))
@@ -852,15 +895,47 @@ def main() -> None:
         shutdown()
     log("BACK", "API ready")
 
+    # 2b) Agent (AI orchestrator) — a pure client of the C2 REST/WS surface.
+    ensure_port_free(8100, "agent")
+    log("AGENT", "Starting AI orchestrator on :8100…")
+    agent_env = env.copy()
+    if use_tls:
+        agent_env["C2_BASE_URL"] = "https://127.0.0.1:8000"
+        agent_env["C2_WS_URL"] = "wss://127.0.0.1:8000/ws/operator"
+        agent_env["C2_VERIFY_TLS"] = "false"  # accept the self-signed lab cert
+    else:
+        agent_env["C2_BASE_URL"] = "http://127.0.0.1:8000"
+        agent_env["C2_WS_URL"] = "ws://127.0.0.1:8000/ws/operator"
+        agent_env["C2_VERIFY_TLS"] = "true"
+    if not agent_env.get("ANTHROPIC_API_KEY"):
+        log("AGENT", "WARNING: ANTHROPIC_API_KEY not set — chat path will be disabled "
+                     "until you add it to .env (manual console still works).")
+    spawn(
+        "AGENT",
+        [str(PYTHON), "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8100"],
+        ROOT / "agents" / "orchestrator",
+        agent_env,
+        shell=False,
+    )
+    if not wait_for_http("http://127.0.0.1:8100/health"):
+        log("AGENT", "WARNING: agent backend not responding yet (chat may be unavailable)")
+    else:
+        log("AGENT", "Agent ready")
+
     # 3) Frontend
     ensure_port_free(5173, "frontend")
     log("FRONT", "Starting Vite dev server on :5173…")
     npm = which_or_die("npm")
+    front_env = env.copy()
+    if not use_tls:
+        # Without TLS the Vite proxy block is inactive; point the browser at the
+        # agent backend directly (its CORS already allows the http dev origin).
+        front_env["VITE_AGENT_URL"] = "http://127.0.0.1:8100"
     spawn(
         "FRONT",
         [npm, "run", "dev", "--", "--host", "127.0.0.1", "--port", "5173"],
         ROOT / "frontend",
-        env,
+        front_env,
     )
     if not wait_for_http(URLS["dashboard"]):
         log("FRONT", "WARNING: dashboard not responding yet (may still be compiling)")

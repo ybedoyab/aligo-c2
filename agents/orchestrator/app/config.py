@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     c2_base_url: str = "http://localhost:8000"
     c2_ws_url: str = "ws://localhost:8000/ws/operator"
     c2_request_timeout: float = 30.0
+    # Verify the C2's TLS certificate. Set false in local dev to accept the
+    # self-signed lab cert the dev stack serves on https/wss. Defaults to True
+    # so the standalone/prod posture is unchanged.
+    c2_verify_tls: bool = True
 
     # --- Agent backend bind --------------------------------------------------
     agent_host: str = "0.0.0.0"

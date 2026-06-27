@@ -46,7 +46,22 @@ agents/orchestrator/
 └── smoke_test.py       # Phase 0: exercise c2_client against a running server
 ```
 
-## Setup
+## Run (recommended — via `dev.py`)
+
+The whole stack, including this agent, starts with one command from the repo root:
+
+```bash
+# put ANTHROPIC_API_KEY in the repo-root .env first (optional but needed for chat)
+python dev.py
+```
+
+`dev.py` installs this agent's deps into the shared venv, launches the backend on
+**:8100**, and points it at the C2 over TLS (`C2_BASE_URL=https://127.0.0.1:8000`,
+`C2_VERIFY_TLS=false` for the self-signed lab cert). The dashboard reaches it through the
+Vite proxy at `/agent`, so the **Console → Ask AI** panel works with no extra setup. If the
+key is missing the stack still runs; only the chat path is disabled.
+
+## Run (standalone)
 
 ```bash
 cd agents/orchestrator
@@ -55,22 +70,21 @@ pip install -r requirements.txt
 cp .env.example .env        # then set ANTHROPIC_API_KEY
 ```
 
-The agent needs `ANTHROPIC_API_KEY` for the chat graph. The Phase 0 smoke test does not.
+Then, with the C2 stack and a few simulated nodes already running
+(`python node.py --simulate-count 3`):
 
-## Run
-
-1. Start the C2 stack (blockchain → deploy contract → server) and a few simulated nodes
-   per the [project README](../../README.md), e.g. `python node.py --simulate-count 3`.
-2. **Phase 0 — verify the contract wiring** (no key needed):
+1. **Phase 0 — verify the contract wiring** (no key needed):
    ```bash
    python smoke_test.py
    ```
    Lists nodes / missions / ledger events from the live C2.
-3. **Run the agent backend:**
+2. **Run the agent backend:**
    ```bash
    uvicorn app.main:app --host 0.0.0.0 --port 8100
    ```
    `GET http://localhost:8100/health` reports model, key-configured, and C2 reachability.
+   When talking to a TLS C2, set `C2_BASE_URL`/`C2_WS_URL` to `https`/`wss` and
+   `C2_VERIFY_TLS=false` in `.env`.
 
 ## The `/chat` SSE protocol
 
@@ -119,8 +133,11 @@ Mission-planner over the safe allowlist only: no arbitrary shell, no new plugins
 capability the manual operator lacks. Expanding the action space is a separate
 scope/ethics decision (see `agent-plan.md` §7).
 
-## Next (deferred)
+## Operator surface (Phase 5 — done)
 
-Phase 5 operator surface: an **Agent** tab in the existing React dashboard (the agreed
-choice) — the browser calls this agent backend, not the C2, so the server's CORS needs no
-change.
+The agent chat lives in the existing **Console** tab as an **Ask AI** panel beside the
+manual plugin console (CloudWatch-style: type a command, or ask the agent). The browser
+talks to this agent backend (via the Vite `/agent` proxy under TLS, or `VITE_AGENT_URL`
+without TLS), never to the C2 directly — so the server's CORS needs no change. Frontend
+pieces: `frontend/src/api/agentClient.ts` (SSE client) and
+`frontend/src/components/AgentChat.tsx` (chat + inline approval UI).

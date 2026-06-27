@@ -10,6 +10,7 @@ import {
 import { formatTime } from "../utils";
 import { StatusBadge } from "../components/HealthBadge";
 import { TaskEvidenceModal } from "../components/TaskEvidenceModal";
+import { AgentChat } from "../components/AgentChat";
 
 const DEFAULT_ARGS: Partial<Record<PluginName, string>> = {
   system_info: "{}",
@@ -211,77 +212,84 @@ export function Console() {
       <div>
         <h1 className="text-xl font-semibold text-white">Operator Console</h1>
         <p className="text-sm text-soc-muted">
-          Safe, plugin-based operator interface — not a remote shell. Commands map to
-          allowlisted plugins only.
+          Run allowlisted plugins by hand, or ask the AI agent to plan and run a mission for
+          you. Safe, plugin-based interface — not a remote shell. Every action is gated and
+          ledgered identically whether typed or agent-driven.
         </p>
       </div>
 
-      <div className="card p-5 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <label className="flex flex-col gap-1 text-xs text-soc-muted">
-            Target
-            <select
-              className="input"
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-            >
-              <option value="all">All online nodes ({onlineNodes.length})</option>
-              {nodes.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.id} ({a.status})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-soc-muted">
-            Plugin
-            <select
-              className="input"
-              value={plugin}
-              onChange={(e) => {
-                const p = e.target.value as PluginName;
-                setPlugin(p);
-                setArgsText(DEFAULT_ARGS[p] ?? "{}");
-              }}
-            >
-              {ALLOWED_PLUGINS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="flex items-end">
-            <button className="btn-primary w-full" onClick={runForm} disabled={busy}>
-              {busy ? "Running…" : "Run"}
-            </button>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <div className="space-y-6">
+          <div className="card p-5 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <label className="flex flex-col gap-1 text-xs text-soc-muted">
+                Target
+                <select
+                  className="input"
+                  value={target}
+                  onChange={(e) => setTarget(e.target.value)}
+                >
+                  <option value="all">All online nodes ({onlineNodes.length})</option>
+                  {nodes.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.id} ({a.status})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-xs text-soc-muted">
+                Plugin
+                <select
+                  className="input"
+                  value={plugin}
+                  onChange={(e) => {
+                    const p = e.target.value as PluginName;
+                    setPlugin(p);
+                    setArgsText(DEFAULT_ARGS[p] ?? "{}");
+                  }}
+                >
+                  {ALLOWED_PLUGINS.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex items-end">
+                <button className="btn-primary w-full" onClick={runForm} disabled={busy}>
+                  {busy ? "Running…" : "Run"}
+                </button>
+              </div>
+            </div>
+            <label className="flex flex-col gap-1 text-xs text-soc-muted">
+              Arguments (JSON)
+              <textarea
+                className="input font-mono text-xs min-h-[80px]"
+                value={argsText}
+                onChange={(e) => setArgsText(e.target.value)}
+              />
+            </label>
+          </div>
+
+          <div className="card p-4">
+            <div className="text-xs text-soc-muted mb-2">Terminal-style commands</div>
+            <div className="flex gap-2">
+              <input
+                className="input flex-1 font-mono text-sm"
+                placeholder="run health_check on node-001"
+                value={cmdLine}
+                onChange={(e) => setCmdLine(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && runCmdLine()}
+              />
+              <button className="btn-ghost" onClick={runCmdLine} disabled={busy}>
+                Execute
+              </button>
+            </div>
+            {cmdMsg && <div className="mt-2 text-xs text-soc-muted">{cmdMsg}</div>}
           </div>
         </div>
-        <label className="flex flex-col gap-1 text-xs text-soc-muted">
-          Arguments (JSON)
-          <textarea
-            className="input font-mono text-xs min-h-[80px]"
-            value={argsText}
-            onChange={(e) => setArgsText(e.target.value)}
-          />
-        </label>
-      </div>
 
-      <div className="card p-4">
-        <div className="text-xs text-soc-muted mb-2">Terminal-style commands</div>
-        <div className="flex gap-2">
-          <input
-            className="input flex-1 font-mono text-sm"
-            placeholder="run health_check on node-001"
-            value={cmdLine}
-            onChange={(e) => setCmdLine(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && runCmdLine()}
-          />
-          <button className="btn-ghost" onClick={runCmdLine} disabled={busy}>
-            Execute
-          </button>
-        </div>
-        {cmdMsg && <div className="mt-2 text-xs text-soc-muted">{cmdMsg}</div>}
+        <AgentChat />
       </div>
 
       <div className="card overflow-hidden">

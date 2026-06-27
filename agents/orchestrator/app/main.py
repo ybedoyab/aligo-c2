@@ -103,6 +103,12 @@ async def _run(req: ChatRequest) -> AsyncIterator[str]:
         yield _sse("done", {"awaiting_approval": False})
         return
 
+    if req.approval is not None:
+        logger.info("chat[%s]: resume approval=%s", req.session_id, req.approval.approved)
+    else:
+        preview = (req.message or "")[:120]
+        logger.info("chat[%s]: turn start (model=%s) msg=%r", req.session_id, settings.agent_model, preview)
+
     awaiting_approval = False
     try:
         async for mode, chunk in graph.astream(payload, config, stream_mode=["updates", "messages"]):
@@ -127,6 +133,7 @@ async def _run(req: ChatRequest) -> AsyncIterator[str]:
                 for m in agent_update.get("messages", []):
                     if isinstance(m, AIMessage) and m.tool_calls:
                         for tc in m.tool_calls:
+                            logger.info("chat[%s]: tool_call %s %s", req.session_id, tc["name"], tc["args"])
                             yield _sse("tool_call", {"tool": tc["name"], "args": tc["args"]})
 
             tools_update = chunk.get("tools")
@@ -138,6 +145,7 @@ async def _run(req: ChatRequest) -> AsyncIterator[str]:
         logger.exception("chat run failed")
         yield _sse("error", {"detail": str(exc)})
 
+    logger.info("chat[%s]: turn done (awaiting_approval=%s)", req.session_id, awaiting_approval)
     yield _sse("done", {"awaiting_approval": awaiting_approval})
 
 

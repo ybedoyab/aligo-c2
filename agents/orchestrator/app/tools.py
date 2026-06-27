@@ -265,16 +265,23 @@ async def start_mission(mission_id: str, target_node_ids: list[str] | None = Non
 
 
 @tool
-async def create_adhoc_task(plugin: str, node_id: str, args: dict[str, Any] | None = None) -> str:
+async def create_adhoc_task(
+    plugin: str, node_id: str, plugin_args: dict[str, Any] | None = None
+) -> str:
     """EXECUTE a single ad-hoc task on one node immediately. Gated action; requires
-    operator approval. `plugin` must be in the allowlist (see list_plugins)."""
+    operator approval. `plugin` must be in the allowlist (see list_plugins).
+    `plugin_args` is the plugin's argument object, e.g. {"text": "hello"} for echo
+    (use list_plugins for each plugin's exact arg schema; pass {} when it takes none).
+
+    NOTE: the param is named `plugin_args` (not `args`) on purpose — a tool param
+    literally named `args` is mangled by the tool-call schema layer."""
     if plugin not in ALLOWED_PLUGINS:
         return json.dumps({
             "error": "disallowed_plugin",
             "detail": f"'{plugin}' not in allowlist",
             "allowed": sorted(ALLOWED_PLUGINS),
         })
-    payload = {"node_id": node_id, "plugin": plugin, "args": args or {}, "mission_id": None}
+    payload = {"node_id": node_id, "plugin": plugin, "args": plugin_args or {}, "mission_id": None}
     try:
         return _ok(await get_c2().create_task(payload))
     except Exception as exc:  # noqa: BLE001

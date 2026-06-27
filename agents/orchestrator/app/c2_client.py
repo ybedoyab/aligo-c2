@@ -30,7 +30,11 @@ class C2Client:
 
     def _http(self) -> httpx.AsyncClient:
         if self._client is None:
-            self._client = httpx.AsyncClient(base_url=self._base_url, timeout=self._timeout)
+            self._client = httpx.AsyncClient(
+                base_url=self._base_url,
+                timeout=self._timeout,
+                verify=settings.c2_verify_tls,
+            )
         return self._client
 
     async def aclose(self) -> None:

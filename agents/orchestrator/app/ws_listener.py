@@ -14,6 +14,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import ssl
 from collections import deque
 from typing import Any
 
@@ -68,6 +69,14 @@ class WsListener:
         self._url = url or settings.c2_ws_url
         self._task: asyncio.Task[None] | None = None
         self._stopped = asyncio.Event()
+        # For wss:// against the dev stack's self-signed lab cert, build an
+        # unverified context when verification is disabled. Plain ws:// ignores it.
+        self._ssl: ssl.SSLContext | None = None
+        if self._url.startswith("wss://") and not settings.c2_verify_tls:
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            self._ssl = ctx
 
     def start(self) -> None:
         if self._task is None or self._task.done():
@@ -86,7 +95,7 @@ class WsListener:
         backoff = 1.0
         while not self._stopped.is_set():
             try:
-                async with websockets.connect(self._url, ping_interval=20) as ws:
+                async with websockets.connect(self._url, ping_interval=20, ssl=self._ssl) as ws:
                     live_state.connected = True
                     backoff = 1.0
                     logger.info("operator WS connected: %s", self._url)
