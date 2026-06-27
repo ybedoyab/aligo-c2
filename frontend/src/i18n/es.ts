@@ -367,6 +367,8 @@ export const es: TranslationDict = {
     tampered: "Alterados",
     chain: "Cadena",
     eventLog: "Registro de eventos",
+    eventLogDescription: "Evidencia cronológica de ejecución y estado on-chain.",
+    chainConnection: "Conexión blockchain",
     event: "Evento",
     pluginHash: "Plugin / hash",
     onChain: "On-chain",

@@ -363,6 +363,8 @@ export const en = {
     tampered: "Tampered",
     chain: "Chain",
     eventLog: "Event log",
+    eventLogDescription: "Chronological execution evidence and on-chain status.",
+    chainConnection: "Blockchain connection",
     event: "Event",
     pluginHash: "Plugin / hash",
     onChain: "On-chain",
