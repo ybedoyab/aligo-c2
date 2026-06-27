@@ -31,6 +31,14 @@ class Settings(BaseSettings):
     agent_host: str = "0.0.0.0"
     agent_port: int = 8100
 
+    # Browser origins allowed to call this backend (comma-separated). In cloud
+    # deploys set CORS_ORIGINS to include the dashboard's public origin.
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
