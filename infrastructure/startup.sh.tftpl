@@ -76,10 +76,16 @@ PUBLIC_AGENT_URL=$PUBLIC_AGENT_URL
 ANTHROPIC_API_KEY=${anthropic_api_key}
 EOF
 
+PROFILE_ARGS=""
+if [ "$ENABLE_AGENT" = "true" ]; then
+  PROFILE_ARGS="--profile agent"
+fi
+
 # ---------------------------------------------------------------------------
-# 4. Build the blockchain image and export the contract ABI to the host so the
-#    server image bakes it in (server/app/blockchain/contract_abi.json is
-#    git-ignored and absent from a fresh clone).
+# 4. Build all images up front. The blockchain image is built first so we can
+#    export the contract ABI to the host before the server image is built
+#    (server/app/blockchain/contract_abi.json is git-ignored and absent from a
+#    fresh clone, so the server image must bake in the freshly extracted copy).
 # ---------------------------------------------------------------------------
 echo "Building blockchain image..."
 $COMPOSE build blockchain
@@ -97,11 +103,17 @@ json.dump(art["abi"], open(out, "w"), indent=2)
 print(f"ABI written to {out} ({len(art['abi'])} entries)")
 PY
 
+echo "Building the remaining images..."
+$COMPOSE $PROFILE_ARGS build
+
 # ---------------------------------------------------------------------------
-# 5. Start the chain and deploy the ExecutionLedger contract
+# 5. Start ONLY the chain, then deploy the contract. The chain is brought up
+#    exactly once and is never rebuilt/recreated afterwards — otherwise the
+#    Hardhat node (in-memory state) would restart and drop the deployed
+#    contract, leaving every ledger event stuck "pending_chain".
 # ---------------------------------------------------------------------------
 echo "Starting blockchain..."
-$COMPOSE up -d blockchain
+$COMPOSE up -d --no-build blockchain
 
 echo "Waiting for blockchain to become healthy..."
 for _ in $(seq 1 60); do
@@ -125,15 +137,13 @@ echo "CONTRACT_ADDRESS=$CONTRACT_ADDRESS"
 sed -i "s|^CONTRACT_ADDRESS=.*|CONTRACT_ADDRESS=$CONTRACT_ADDRESS|" "$APP_DIR/.env"
 
 # ---------------------------------------------------------------------------
-# 6. Build and start the rest of the stack
+# 6. Start the rest of the stack WITHOUT rebuilding (images are already built,
+#    so --no-build guarantees the running chain is left untouched). The server
+#    now boots with CONTRACT_ADDRESS set and a live contract, so its singleton
+#    blockchain client connects and anchors events from the start.
 # ---------------------------------------------------------------------------
-PROFILE_ARGS=""
-if [ "$ENABLE_AGENT" = "true" ]; then
-  PROFILE_ARGS="--profile agent"
-fi
-
-echo "Building and starting the full stack..."
-$COMPOSE $PROFILE_ARGS up -d --build
+echo "Starting the full stack..."
+$COMPOSE $PROFILE_ARGS up -d --no-build
 
 touch "$APP_DIR/READY"
 echo "=== Aligo C2 startup complete: $(date -u) ==="
