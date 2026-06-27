@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { useI18n } from "../i18n";
+import { Select } from "./Select";
 import {
   ALLOWED_PLUGINS,
   type Node,
@@ -133,22 +134,20 @@ export function MissionBuilder({ nodes, onChanged, embedded }: Props) {
         </div>
         {steps.map((step, idx) => (
           <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <select
-              className="input text-xs sm:max-w-[180px]"
+            <Select
+              className="w-full sm:max-w-[180px]"
+              buttonClassName="text-xs"
               value={step.plugin}
-              onChange={(e) =>
+              ariaLabel={t("missions.stepsPlugins")}
+              options={ALLOWED_PLUGINS.map((item) => ({ value: item, label: item }))}
+              onChange={(value) => {
+                const selectedPlugin = value as PluginName;
                 updateStep(idx, {
-                  plugin: e.target.value as PluginName,
-                  argsText: DEFAULT_ARGS[e.target.value as PluginName] ?? "{}",
-                })
-              }
-            >
-              {ALLOWED_PLUGINS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
+                  plugin: selectedPlugin,
+                  argsText: DEFAULT_ARGS[selectedPlugin] ?? "{}",
+                });
+              }}
+            />
             <input
               className="input flex-1 font-mono text-xs"
               value={step.argsText}

@@ -11,6 +11,7 @@ import {
 import { StatusBadge } from "../components/HealthBadge";
 import { TaskEvidenceModal } from "../components/TaskEvidenceModal";
 import { AgentChat } from "../components/AgentChat";
+import { Select } from "../components/Select";
 
 const DEFAULT_ARGS: Partial<Record<PluginName, string>> = {
   system_info: "{}",
@@ -225,34 +226,34 @@ export function Console() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <label className="flex flex-col gap-1 text-xs text-soc-muted">
                 {t("console.target")}
-                <select className="input" value={target} onChange={(e) => setTarget(e.target.value)}>
-                  <option value="all">
-                    {t("console.allOnline", { count: onlineNodes.length })}
-                  </option>
-                  {nodes.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.id} ({status(a.status)})
-                    </option>
-                  ))}
-                </select>
+                <Select
+                  value={target}
+                  ariaLabel={t("console.target")}
+                  options={[
+                    {
+                      value: "all",
+                      label: t("console.allOnline", { count: onlineNodes.length }),
+                    },
+                    ...nodes.map((node) => ({
+                      value: node.id,
+                      label: `${node.id} (${status(node.status)})`,
+                    })),
+                  ]}
+                  onChange={setTarget}
+                />
               </label>
               <label className="flex flex-col gap-1 text-xs text-soc-muted">
                 {t("console.plugin")}
-                <select
-                  className="input"
+                <Select
                   value={plugin}
-                  onChange={(e) => {
-                    const p = e.target.value as PluginName;
-                    setPlugin(p);
-                    setArgsText(DEFAULT_ARGS[p] ?? "{}");
+                  ariaLabel={t("console.plugin")}
+                  options={ALLOWED_PLUGINS.map((item) => ({ value: item, label: item }))}
+                  onChange={(value) => {
+                    const selectedPlugin = value as PluginName;
+                    setPlugin(selectedPlugin);
+                    setArgsText(DEFAULT_ARGS[selectedPlugin] ?? "{}");
                   }}
-                >
-                  {ALLOWED_PLUGINS.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
+                />
               </label>
               <div className="flex items-end">
                 <button className="btn-primary w-full" onClick={runForm} disabled={busy}>

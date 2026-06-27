@@ -170,4 +170,89 @@ export function PlayIcon(props: IconProps) {
     </Icon>
   );
 }
+export function FilterIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 5h16l-6 7v5l-4 2v-7L4 5Z" />
+    </Icon>
+  );
+}
+
+export function RefreshIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M20 7v5h-5M4 17v-5h5" />
+      <path d="M6.1 9a7 7 0 0 1 11.5-2L20 9M4 15l2.4 2a7 7 0 0 0 11.5-2" />
+    </Icon>
+  );
+}
+
+export function ClockIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </Icon>
+  );
+}
+
+export function GroupIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="9" cy="9" r="3" />
+      <circle cx="17" cy="10" r="2" />
+      <path d="M3.5 19a5.5 5.5 0 0 1 11 0M14 16a4 4 0 0 1 6.5 3" />
+    </Icon>
+  );
+}
+
+export function ArrowRightIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M5 12h14M14 7l5 5-5 5" />
+    </Icon>
+  );
+}
+
+export function DeviceIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="4" y="4" width="16" height="13" rx="2" />
+      <path d="M8 21h8M12 17v4" />
+    </Icon>
+  );
+}
+export function HeartPulseIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M20.8 5.7a5.5 5.5 0 0 0-7.8 0L12 6.8l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-7.5a5.5 5.5 0 0 0 0-7.8Z" />
+      <path d="M3.5 12h4l1.5-3 3 6 1.5-3h7" />
+    </Icon>
+  );
+}
+
+export function GaugeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M5.6 19a9 9 0 1 1 12.8 0" />
+      <path d="m12 13 4-4M8 17h8" />
+    </Icon>
+  );
+}
+
+export function UserIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4.5 21a7.5 7.5 0 0 1 15 0" />
+    </Icon>
+  );
+}
+export function ChevronDownIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m7 10 5 5 5-5" />
+    </Icon>
+  );
+}
 export type NavIcon = typeof DashboardIcon;
