@@ -17,8 +17,10 @@ NODE_POLICIES: dict[str, NodePolicy] = {
     "basic_safe": NodePolicy(
         id="basic_safe",
         name="Basic Safe Node",
-        description="Minimal read-only checks suitable for any lab node.",
-        plugins=frozenset({"health_check", "system_info", "echo"}),
+        description="Minimal read-only checks (incl. sandboxed lab dir listing) for any lab node.",
+        plugins=frozenset(
+            {"health_check", "system_info", "echo", "list_lab_directory"}
+        ),
     ),
     "lab_file_audit": NodePolicy(
         id="lab_file_audit",

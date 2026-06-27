@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     # app agree. Leave empty to wire later; the read-only smoke test does not
     # need it, but the chat graph does.
     anthropic_api_key: str = ""
-    agent_model: str = "claude-opus-4-8"
+    agent_model: str = "claude-haiku-4-5"
     agent_max_tokens: int = 8000
 
     # --- C2 contract (the only external surface the agent consumes) ----------
