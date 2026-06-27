@@ -17,6 +17,8 @@ import type {
   Task,
   TaskEvidence,
   VerifyResult,
+  VulnerabilityIssue,
+  VulnerabilityScan,
 } from "../types";
 
 const API_URL =
@@ -230,6 +232,47 @@ export const api = {
   ) => {
     const params = new URLSearchParams({ format, save: String(save) });
     const res = await fetch(`${API_URL}/api/missions/${missionId}/report?${params}`);
+    if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+    if (format === "markdown") {
+      return { markdown: await res.text() };
+    }
+    return (await res.json()) as {
+      report: Record<string, unknown>;
+      saved_paths?: Record<string, string>;
+    };
+  },
+
+  listVulnScans: () => http<VulnerabilityScan[]>("/api/vulnerabilities/scans"),
+  getVulnScan: (id: string) =>
+    http<VulnerabilityScan>(`/api/vulnerabilities/scans/${id}`),
+  triggerVulnScan: (node_ids?: string[]) =>
+    http<VulnerabilityScan>("/api/vulnerabilities/scans", {
+      method: "POST",
+      body: JSON.stringify({ node_ids: node_ids ?? [] }),
+    }),
+  listVulnIssues: (opts?: {
+    scan_id?: string;
+    node_id?: string;
+    severity?: string;
+  }) => {
+    const params = new URLSearchParams();
+    if (opts?.scan_id) params.set("scan_id", opts.scan_id);
+    if (opts?.node_id) params.set("node_id", opts.node_id);
+    if (opts?.severity) params.set("severity", opts.severity);
+    const q = params.toString();
+    return http<VulnerabilityIssue[]>(
+      `/api/vulnerabilities/issues${q ? `?${q}` : ""}`
+    );
+  },
+  exportVulnScanReport: async (
+    scanId: string,
+    format: "json" | "markdown" = "json",
+    save = false
+  ) => {
+    const params = new URLSearchParams({ format, save: String(save) });
+    const res = await fetch(
+      `${API_URL}/api/vulnerabilities/scans/${scanId}/report?${params}`
+    );
     if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
     if (format === "markdown") {
       return { markdown: await res.text() };

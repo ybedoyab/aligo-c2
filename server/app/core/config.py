@@ -65,6 +65,39 @@ class Settings(BaseSettings):
     heartbeat_offline_seconds: int = 30
     heartbeat_monitor_interval_seconds: int = 5
 
+    # Vulnerability scan / OSINT (lab use only)
+    vuln_scan_cron_enabled: bool = True
+    vuln_scan_interval_hours: float = 24.0
+    github_token: str = ""
+    reddit_client_id: str = ""
+    reddit_client_secret: str = ""
+    x_bearer_token: str = ""
+    anthropic_api_key: str = ""
+    nvd_api_key: str = ""
+    stackexchange_key: str = ""
+    osint_enabled_sources: str = ""
+
+    def resolved_osint_sources(self) -> frozenset[str]:
+        """Empty env means all OSINT sources enabled."""
+        default = frozenset(
+            {
+                "github",
+                "reddit",
+                "x",
+                "nvd",
+                "osv",
+                "cisa_kev",
+                "hackernews",
+                "stackexchange",
+                "ghsa",
+            }
+        )
+        raw = self.osint_enabled_sources.strip()
+        if not raw:
+            return default
+        selected = {s.strip().lower() for s in raw.split(",") if s.strip()}
+        return selected & default if selected else default
+
     def resolved_contract_address(self) -> str:
         """CONTRACT_ADDRESS from env, or deployment.json if env is empty."""
         if self.contract_address.strip():

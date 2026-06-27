@@ -105,6 +105,46 @@ class IntegrityStatus(StrEnum):
     UNKNOWN = "unknown"
 
 
+class VulnScanStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class VulnScanTrigger(StrEnum):
+    MANUAL = "manual"
+    CRON = "cron"
+
+
+class VulnSeverity(StrEnum):
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+    INFO = "info"
+
+
+class VulnIssueSource(StrEnum):
+    HEURISTIC = "heuristic"
+    GITHUB = "github"
+    REDDIT = "reddit"
+    X = "x"
+    OSINT = "osint"
+    NVD = "nvd"
+    OSV = "osv"
+    CISA_KEV = "cisa_kev"
+    HACKERNEWS = "hackernews"
+    STACKEXCHANGE = "stackexchange"
+    GHSA = "ghsa"
+
+
+class VulnIssueStatus(StrEnum):
+    OPEN = "open"
+    RESOLVED = "resolved"
+    FALSE_POSITIVE = "false_positive"
+
+
 # Allowlisted plugins the operator may target. Mirrors the node plugin registry.
 from app.core.iot_plugins import IOT_PLUGINS
 

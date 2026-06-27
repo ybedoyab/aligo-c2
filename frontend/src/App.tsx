@@ -8,6 +8,7 @@ import { Ledger } from "./pages/Ledger";
 import { Missions } from "./pages/Missions";
 import { IoTLab } from "./pages/IoTLab";
 import { Topology } from "./pages/Topology";
+import { Vulnerabilities } from "./pages/Vulnerabilities";
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="topology" element={<Topology />} />
         <Route path="iot-lab" element={<IoTLab />} />
         <Route path="missions" element={<Missions />} />
+        <Route path="vulnerabilities" element={<Vulnerabilities />} />
         <Route path="console" element={<Console />} />
         <Route path="ledger" element={<Ledger />} />
       </Route>

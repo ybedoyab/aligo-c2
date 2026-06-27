@@ -28,6 +28,17 @@ PREDEFINED_MISSIONS: list[dict] = [
         ],
     },
     {
+        "id": "mission-vuln-recon",
+        "name": "Vulnerability Recon",
+        "description": "Lab-safe recon for vulnerability scanning: health, system, network, directory.",
+        "steps": [
+            {"plugin": "health_check", "args": {}},
+            {"plugin": "system_info", "args": {}},
+            {"plugin": "network_info", "args": {}},
+            {"plugin": "list_lab_directory", "args": {"path": "."}},
+        ],
+    },
+    {
         "id": "mission-directory-audit",
         "name": "Directory Audit",
         "description": "List the contents of each node's sandboxed lab workspace.",

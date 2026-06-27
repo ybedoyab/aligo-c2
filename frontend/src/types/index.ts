@@ -41,6 +41,53 @@ export type IntegrityStatus =
   | "local_only"
   | "unknown";
 
+export type VulnScanStatus = "pending" | "running" | "completed" | "failed";
+export type VulnScanTrigger = "manual" | "cron";
+export type VulnSeverity = "critical" | "high" | "medium" | "low" | "info";
+export type VulnIssueSource =
+  | "heuristic"
+  | "github"
+  | "reddit"
+  | "x"
+  | "osint"
+  | "nvd"
+  | "osv"
+  | "cisa_kev"
+  | "hackernews"
+  | "stackexchange"
+  | "ghsa";
+export type VulnIssueStatus = "open" | "resolved" | "false_positive";
+
+export interface VulnerabilityScan {
+  id: string;
+  status: VulnScanStatus;
+  trigger: VulnScanTrigger;
+  mission_id: string | null;
+  node_ids: string[];
+  facts: Record<string, unknown>;
+  summary: string | null;
+  error_message: string | null;
+  issue_count: number;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+export interface VulnerabilityIssue {
+  id: string;
+  scan_id: string;
+  node_id: string;
+  title: string;
+  description: string;
+  severity: VulnSeverity;
+  source: VulnIssueSource;
+  evidence_url: string | null;
+  matched_fact: string | null;
+  confidence: number;
+  status: VulnIssueStatus;
+  created_at: string;
+}
+
 export interface Node {
   id: string;
   hostname: string;
@@ -397,6 +444,8 @@ export interface WsMessage {
     | "mission_update"
     | "ledger_event"
     | "iot_telemetry"
+    | "vulnerability_scan_update"
+    | "vulnerability_issue"
     | "pong";
   data?: unknown;
 }

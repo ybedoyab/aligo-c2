@@ -134,11 +134,17 @@ def banner(tag: str, msg: str) -> None:
 
 
 def which_or_die(name: str) -> str:
-    path = shutil.which(name)
-    if not path:
-        log("SETUP", f"ERROR: '{name}' not found on PATH. Install it and retry.")
-        sys.exit(1)
-    return path
+    if os.name == "nt":
+        # En Windows, evitar que shutil.which devuelva el script bash
+        # sin extensión que el instalador de Node coloca para Cygwin/Git Bash.
+        for ext in (".cmd", ".exe", ".bat"):
+            found = shutil.which(name + ext)
+            if found:
+                return found
+    found = shutil.which(name)
+    if not found:
+        die(f"'{name}' not found in PATH")
+    return found
 
 
 def load_env(*, use_tls: bool) -> dict[str, str]:

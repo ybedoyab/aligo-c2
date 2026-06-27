@@ -16,6 +16,8 @@ import type {
   Mission,
   Result,
   Task,
+  VulnerabilityIssue,
+  VulnerabilityScan,
   WsMessage,
 } from "./types";
 
@@ -31,6 +33,8 @@ interface C2State {
   tasks: Task[];
   results: Result[];
   ledger: LedgerEvent[];
+  vulnScans: VulnerabilityScan[];
+  vulnIssues: VulnerabilityIssue[];
   health: HealthInfo | null;
   wsConnected: boolean;
   iotTelemetry: IoTTelemetry | null;
@@ -53,18 +57,22 @@ export function C2Provider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [results, setResults] = useState<Result[]>([]);
   const [ledger, setLedger] = useState<LedgerEvent[]>([]);
+  const [vulnScans, setVulnScans] = useState<VulnerabilityScan[]>([]);
+  const [vulnIssues, setVulnIssues] = useState<VulnerabilityIssue[]>([]);
   const [health, setHealth] = useState<HealthInfo | null>(null);
   const [iotTelemetry, setIotTelemetry] = useState<IoTTelemetry | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
   const refreshAll = useCallback(async () => {
-    const [a, m, t, r, l, h] = await Promise.allSettled([
+    const [a, m, t, r, l, vs, vi, h] = await Promise.allSettled([
       api.listNodes(),
       api.listMissions(),
       api.listTasks(),
       api.listResults(),
       api.listLedger(),
+      api.listVulnScans(),
+      api.listVulnIssues(),
       api.health(),
     ]);
     if (a.status === "fulfilled") setNodes(a.value);
@@ -72,6 +80,8 @@ export function C2Provider({ children }: { children: ReactNode }) {
     if (t.status === "fulfilled") setTasks(t.value);
     if (r.status === "fulfilled") setResults(r.value);
     if (l.status === "fulfilled") setLedger(l.value);
+    if (vs.status === "fulfilled") setVulnScans(vs.value);
+    if (vi.status === "fulfilled") setVulnIssues(vi.value);
     if (h.status === "fulfilled") setHealth(h.value);
   }, []);
 
@@ -130,6 +140,12 @@ export function C2Provider({ children }: { children: ReactNode }) {
           case "ledger_event":
             setLedger((prev) => upsert(prev, msg.data as LedgerEvent));
             break;
+          case "vulnerability_scan_update":
+            setVulnScans((prev) => upsert(prev, msg.data as VulnerabilityScan));
+            break;
+          case "vulnerability_issue":
+            setVulnIssues((prev) => upsert(prev, msg.data as VulnerabilityIssue));
+            break;
           default:
             break;
         }
@@ -151,12 +167,14 @@ export function C2Provider({ children }: { children: ReactNode }) {
       tasks,
       results,
       ledger,
+      vulnScans,
+      vulnIssues,
       health,
       wsConnected,
       iotTelemetry,
       refreshAll,
     }),
-    [nodes, missions, tasks, results, ledger, health, wsConnected, iotTelemetry, refreshAll]
+    [nodes, missions, tasks, results, ledger, vulnScans, vulnIssues, health, wsConnected, iotTelemetry, refreshAll]
   );
 
   return <C2Context.Provider value={value}>{children}</C2Context.Provider>;
