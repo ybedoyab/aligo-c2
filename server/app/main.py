@@ -11,9 +11,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session
 
 from app import __version__
-from app.api import nodes, demo, evidence, iot, ledger, missions, policies, results, tasks
+from app.api import nodes, demo, evidence, iot, ledger, missions, policies, results, tasks, vulnerabilities
 from app.blockchain.contract_client import get_contract_client
 from app.core.config import settings
+from app.core.enums import VulnScanTrigger
 from app.db.database import engine, init_db
 from app.db.seed import seed_predefined_missions
 from app.schemas.node import NodeRead
@@ -68,20 +69,50 @@ def _sync_ledger_blocking() -> dict[str, int]:
         return ledger_service.ensure_chain_sync(session)
 
 
+async def _vuln_scan_scheduler() -> None:
+    """Run vulnerability scans on a configurable interval (default daily)."""
+    if not settings.vuln_scan_cron_enabled:
+        logger.info("Vulnerability scan cron disabled")
+        return
+
+    interval_seconds = max(60.0, settings.vuln_scan_interval_hours * 3600.0)
+    logger.info(
+        "Vulnerability scan scheduler started (interval %.1f hours)",
+        settings.vuln_scan_interval_hours,
+    )
+    while True:
+        try:
+            await asyncio.sleep(interval_seconds)
+            logger.info("Cron vulnerability scan starting")
+            await vuln_scan_service.trigger_scan(trigger=VulnScanTrigger.CRON)
+        except asyncio.CancelledError:
+            break
+        except ValueError as exc:
+            logger.warning("Cron vulnerability scan skipped: %s", exc)
+        except Exception as exc:  # pragma: no cover
+            logger.exception("vuln scan scheduler error: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from app.services import vuln_scan_service
+
     init_db()
     seed_predefined_missions()
+    with Session(engine) as session:
+        vuln_scan_service.ensure_vuln_recon_mission(session)
     client = get_contract_client()
     logger.info("Ledger status: %s", client.reason)
     sync_task = asyncio.create_task(_sync_ledger_with_chain())
     monitor = asyncio.create_task(_heartbeat_monitor())
+    vuln_scheduler = asyncio.create_task(_vuln_scan_scheduler())
     logger.info("Aligo Mission Ledger C2 server started (v%s)", __version__)
     try:
         yield
     finally:
         sync_task.cancel()
         monitor.cancel()
+        vuln_scheduler.cancel()
 
 
 app = FastAPI(
@@ -108,6 +139,7 @@ app.include_router(ledger.router)
 app.include_router(evidence.router)
 app.include_router(demo.router)
 app.include_router(iot.router)
+app.include_router(vulnerabilities.router)
 
 
 @app.get("/health", tags=["meta"])

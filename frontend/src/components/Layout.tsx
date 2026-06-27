@@ -11,6 +11,7 @@ import {
   MenuIcon,
   MissionsIcon,
   NodesIcon,
+  ShieldIcon,
   TopologyIcon,
   type NavIcon,
 } from "./icons";
@@ -41,6 +42,7 @@ export function Layout() {
     { to: "/topology", label: t("nav.topology"), icon: TopologyIcon },
     { to: "/iot-lab", label: t("nav.iotLab"), icon: IoTLabIcon },
     { to: "/missions", label: t("nav.missions"), icon: MissionsIcon },
+    { to: "/vulnerabilities", label: t("nav.vulnerabilities"), icon: ShieldIcon },
     { to: "/console", label: t("nav.console"), icon: ConsoleIcon },
     { to: "/ledger", label: t("nav.ledger"), icon: LedgerIcon },
   ];

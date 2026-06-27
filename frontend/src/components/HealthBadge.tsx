@@ -34,6 +34,23 @@ const STATUS_STYLES: Record<string, string> = {
   BLOCKED: "bg-soc-warn/15 text-soc-warn border-soc-warn/40",
   VERIFIED: "bg-soc-ok/15 text-soc-ok border-soc-ok/40",
   TAMPERED: "bg-soc-err/15 text-soc-err border-soc-err/40",
+  critical: "bg-soc-err/15 text-soc-err border-soc-err/40",
+  high: "bg-soc-warn/15 text-soc-warn border-soc-warn/40",
+  medium: "bg-soc-accent2/15 text-soc-accent2 border-soc-accent2/40",
+  low: "bg-soc-accent/15 text-soc-accent border-soc-accent/40",
+  info: "bg-soc-muted/15 text-soc-muted border-soc-border",
+  manual: "bg-soc-accent/15 text-soc-accent border-soc-accent/40",
+  cron: "bg-soc-accent2/15 text-soc-accent2 border-soc-accent2/40",
+  github: "bg-soc-muted/10 text-soc-muted border-soc-border",
+  reddit: "bg-soc-muted/10 text-soc-muted border-soc-border",
+  heuristic: "bg-soc-muted/10 text-soc-muted border-soc-border",
+  osint: "bg-soc-muted/10 text-soc-muted border-soc-border",
+  nvd: "bg-soc-warn/15 text-soc-warn border-soc-warn/40",
+  osv: "bg-soc-accent2/15 text-soc-accent2 border-soc-accent2/40",
+  cisa_kev: "bg-soc-err/15 text-soc-err border-soc-err/40",
+  hackernews: "bg-soc-muted/10 text-soc-muted border-soc-border",
+  stackexchange: "bg-soc-muted/10 text-soc-muted border-soc-border",
+  ghsa: "bg-soc-accent/15 text-soc-accent border-soc-accent/40",
 };
 
 export function StatusBadge({
