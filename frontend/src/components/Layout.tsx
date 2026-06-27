@@ -92,8 +92,12 @@ export function Layout() {
       >
         <div className="px-5 py-5 border-b border-soc-borderSubtle flex items-start justify-between gap-3 bg-gradient-to-r from-soc-brand/10 to-transparent">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-soc-brand/25 to-soc-brand3/20 text-soc-brand border border-soc-brand/35 shadow-[0_0_16px_rgba(244,63,94,0.15)]">
-              <ShieldIcon className="h-5 w-5" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/80 bg-[#fff8f8] p-1 shadow-[0_0_16px_rgba(244,63,94,0.18)]">
+              <img
+                src="/logo.png"
+                alt="Logo de Aligo"
+                className="h-full w-full object-contain"
+              />
             </div>
             <div className="min-w-0">
               <div className="text-white font-semibold leading-tight">Aligo</div>

@@ -10,6 +10,60 @@ import {
   StatusBadge,
 } from "../components/HealthBadge";
 import { TaskEvidenceModal } from "../components/TaskEvidenceModal";
+import { Select } from "../components/Select";
+import {
+  ClockIcon,
+  CompletedTasksIcon,
+  DeviceIcon,
+  FailedTasksIcon,
+  GaugeIcon,
+  HeartPulseIcon,
+  MissionsIcon,
+  UserIcon,
+  type NavIcon,
+} from "../components/icons";
+
+const HEALTH_FACTOR = {
+  HEARTBEAT: "Heartbeat",
+  TASK_SUCCESS: "Task success rate",
+  LATENCY: "Average latency",
+  ERRORS: "Recent errors",
+} as const;
+
+interface HealthFactorVisual {
+  Icon: NavIcon;
+  labelKey: string;
+  iconClass: string;
+}
+
+const DEFAULT_HEALTH_FACTOR_VISUAL: HealthFactorVisual = {
+  Icon: GaugeIcon,
+  labelKey: "nodeDetail.healthFactor",
+  iconClass: "border-soc-accent/30 text-soc-accent",
+};
+
+const HEALTH_FACTOR_VISUALS: Record<string, HealthFactorVisual> = {
+  [HEALTH_FACTOR.HEARTBEAT]: {
+    Icon: HeartPulseIcon,
+    labelKey: "nodeDetail.heartbeatHealth",
+    iconClass: "border-soc-err/30 text-soc-err animate-pulse-soft",
+  },
+  [HEALTH_FACTOR.TASK_SUCCESS]: {
+    Icon: CompletedTasksIcon,
+    labelKey: "nodeDetail.taskSuccessHealth",
+    iconClass: "border-soc-ok/30 text-soc-ok",
+  },
+  [HEALTH_FACTOR.LATENCY]: {
+    Icon: GaugeIcon,
+    labelKey: "nodeDetail.latencyHealth",
+    iconClass: "border-soc-accent/30 text-soc-accent",
+  },
+  [HEALTH_FACTOR.ERRORS]: {
+    Icon: FailedTasksIcon,
+    labelKey: "nodeDetail.errorsHealth",
+    iconClass: "border-soc-warn/30 text-soc-warn",
+  },
+};
 
 export function NodeDetailPage() {
   const { t, timeAgo, translateError } = useI18n();
@@ -120,40 +174,46 @@ export function NodeDetailPage() {
 
       {error && <div className="text-sm text-soc-err">{error}</div>}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label={t("nodeDetail.healthScore")}
           value={<HealthBadge score={node.health_score} />}
+          Icon={HeartPulseIcon}
+          iconClass="border-soc-brand/30 text-soc-brand"
         />
-        <StatCard label={t("nodeDetail.totalTasks")} value={stats.total_tasks} />
+        <StatCard
+          label={t("nodeDetail.totalTasks")}
+          value={stats.total_tasks}
+          Icon={MissionsIcon}
+          iconClass="border-soc-accent/30 text-soc-accent"
+        />
         <StatCard
           label={t("nodeDetail.successful")}
           value={stats.successful_tasks}
           accent="text-soc-ok"
+          Icon={CompletedTasksIcon}
+          iconClass="border-soc-ok/30 text-soc-ok"
         />
         <StatCard
           label={t("nodeDetail.failed")}
           value={stats.failed_tasks}
           accent="text-soc-err"
+          Icon={FailedTasksIcon}
+          iconClass="border-soc-err/30 text-soc-err"
         />
       </div>
 
-      <div className="card p-4">
-        <h3 className="text-sm font-semibold text-white mb-3">{t("nodeDetail.healthBreakdown")}</h3>
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+        <div className="card h-full p-4">
+          <h3 className="mb-3 text-sm font-semibold text-white">{t("nodeDetail.healthBreakdown")}</h3>
         <div className="space-y-2">
-          {health.factors.map((f) => (
-            <div key={f.label} className="flex items-center justify-between text-sm gap-4">
-              <div>
-                <span className="text-white">{f.label}</span>
-                <p className="text-xs text-soc-muted">{f.detail}</p>
-              </div>
-              <span className="font-mono text-soc-accent">{f.score}</span>
-            </div>
+          {health.factors.map((factor) => (
+            <HealthFactorRow key={factor.label} factor={factor} />
           ))}
+          </div>
         </div>
-      </div>
 
-      <div className="card p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="card grid grid-cols-1 gap-4 p-4 md:grid-cols-2">
         <h3 className="md:col-span-2 text-sm font-semibold text-white">
           {t("nodeDetail.registryMetadata")}
         </h3>
@@ -190,34 +250,30 @@ export function NodeDetailPage() {
         </label>
         <label className="flex flex-col gap-1 text-xs text-soc-muted">
           {t("nodes.policy")}
-          <select
-            className="input"
+          <Select
             value={edit.policy_id ?? "basic_safe"}
-            onChange={(e) => setEdit((x) => ({ ...x, policy_id: e.target.value }))}
-          >
-            {policies.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+            ariaLabel={t("nodes.policy")}
+            options={policies.map((policy) => ({ value: policy.id, label: policy.name }))}
+            onChange={(value) => setEdit((current) => ({ ...current, policy_id: value }))}
+          />
         </label>
         <label className="flex flex-col gap-1 text-xs text-soc-muted">
           {t("nodeDetail.nodeType")}
-          <select
-            className="input"
+          <Select
             value={edit.node_type ?? "real"}
-            onChange={(e) =>
-              setEdit((x) => ({
-                ...x,
-                node_type: e.target.value as NodeUpdate["node_type"],
+            ariaLabel={t("nodeDetail.nodeType")}
+            options={[
+              { value: "real", label: t("nodeType.real") },
+              { value: "simulated", label: t("nodeType.simulated") },
+              { value: "ai_analyst", label: t("nodeType.ai_analyst_placeholder") },
+            ]}
+            onChange={(value) =>
+              setEdit((current) => ({
+                ...current,
+                node_type: value as NodeUpdate["node_type"],
               }))
             }
-          >
-            <option value="real">{t("nodeType.real")}</option>
-            <option value="simulated">{t("nodeType.simulated")}</option>
-            <option value="ai_analyst">{t("nodeType.ai_analyst_placeholder")}</option>
-          </select>
+          />
         </label>
         <label className="flex items-center gap-2 text-sm text-soc-muted">
           <input
@@ -246,12 +302,23 @@ export function NodeDetailPage() {
           )}
         </div>
       </div>
+      </div>
 
-      <div className="card p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-        <Info label={t("nodes.os")} value={node.os} dash={t("common.dash")} />
-        <Info label={t("nodeDetail.user")} value={node.username} dash={t("common.dash")} />
-        <Info label={t("nodes.lastSeen")} value={timeAgo(node.last_seen)} />
-        <Info label={t("nodes.lastHeartbeat")} value={timeAgo(last_heartbeat)} />
+      <div className="card grid grid-cols-1 gap-3 p-4 text-sm sm:grid-cols-2 md:grid-cols-4">
+        <Info label={t("nodes.os")} value={node.os} dash={t("common.dash")} Icon={DeviceIcon} />
+        <Info
+          label={t("nodeDetail.user")}
+          value={node.username}
+          dash={t("common.dash")}
+          Icon={UserIcon}
+        />
+        <Info label={t("nodes.lastSeen")} value={timeAgo(node.last_seen)} Icon={ClockIcon} />
+        <Info
+          label={t("nodes.lastHeartbeat")}
+          value={timeAgo(last_heartbeat)}
+          Icon={HeartPulseIcon}
+          iconClass="text-soc-err animate-pulse-soft"
+        />
       </div>
 
       <div className="card-static overflow-hidden">
@@ -312,28 +379,69 @@ export function NodeDetailPage() {
   );
 }
 
-function StatCard({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: ReactNode;
-  accent?: string;
-}) {
+type HealthFactor = NodeDetail["health"]["factors"][number];
+
+function HealthFactorRow({ factor }: { factor: HealthFactor }) {
+  const { t } = useI18n();
+  const visual = HEALTH_FACTOR_VISUALS[factor.label] ?? DEFAULT_HEALTH_FACTOR_VISUAL;
+  const { Icon } = visual;
+
   return (
-    <div className="card p-4">
-      <div className="text-xs text-soc-muted uppercase">{label}</div>
-      <div className={`mt-1 text-2xl font-semibold ${accent ?? "text-white"}`}>{value}</div>
+    <div className="flex items-center gap-3 rounded-lg border border-soc-borderSubtle bg-soc-bg/40 p-3">
+      <div
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-soc-panel2/70 ${visual.iconClass}`}
+      >
+        <Icon className="h-5 w-5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <span className="text-sm text-white">{t(visual.labelKey)}</span>
+        <p className="text-xs text-soc-muted">{factor.detail}</p>
+      </div>
+      <span className="font-mono text-soc-accent">{factor.score}</span>
     </div>
   );
 }
 
-function Info({ label, value, dash }: { label: string; value: string; dash?: string }) {
+interface StatCardProps {
+  label: string;
+  value: ReactNode;
+  Icon: NavIcon;
+  iconClass: string;
+  accent?: string;
+}
+
+function StatCard({ label, value, Icon, iconClass, accent }: StatCardProps) {
   return (
-    <div>
-      <div className="text-xs text-soc-muted">{label}</div>
-      <div className="text-white">{value || dash || "—"}</div>
+    <div className="card flex items-start justify-between gap-3 p-4">
+      <div className="min-w-0">
+        <div className="text-xs uppercase text-soc-muted">{label}</div>
+        <div className={`mt-2 text-2xl font-semibold ${accent ?? "text-white"}`}>{value}</div>
+      </div>
+      <div
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-soc-bg/60 ${iconClass}`}
+      >
+        <Icon className="h-5 w-5" />
+      </div>
+    </div>
+  );
+}
+
+interface InfoProps {
+  label: string;
+  value: string;
+  Icon: NavIcon;
+  dash?: string;
+  iconClass?: string;
+}
+
+function Info({ label, value, Icon, dash, iconClass = "text-soc-accent" }: InfoProps) {
+  return (
+    <div className="flex min-w-0 items-center gap-3 rounded-lg border border-soc-borderSubtle bg-soc-bg/40 p-3">
+      <Icon className={`h-5 w-5 shrink-0 ${iconClass}`} />
+      <div className="min-w-0">
+        <div className="text-xs text-soc-muted">{label}</div>
+        <div className="truncate text-white">{value || dash || "—"}</div>
+      </div>
     </div>
   );
 }

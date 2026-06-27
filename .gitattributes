@@ -1,0 +1,4 @@
+# Shell scripts and Terraform templates run on Linux VMs — keep LF endings so
+# the shebang / interpreter isn't broken by Windows CRLF (\r) on checkout.
+*.sh        text eol=lf
+*.tftpl     text eol=lf

@@ -10,6 +10,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from sqlalchemy import or_
 from sqlmodel import Session, select
 
 from app.core.enums import MissionStatus, TaskStatus, VulnScanStatus, VulnScanTrigger
@@ -59,9 +60,14 @@ def get_scan(session: Session, scan_id: str) -> VulnerabilityScan | None:
     return session.get(VulnerabilityScan, scan_id)
 
 
-def get_running_scan(session: Session) -> VulnerabilityScan | None:
+def get_active_scan(session: Session) -> VulnerabilityScan | None:
     row = session.exec(
-        select(VulnerabilityScan).where(VulnerabilityScan.status == VulnScanStatus.RUNNING)
+        select(VulnerabilityScan).where(
+            or_(
+                VulnerabilityScan.status == VulnScanStatus.PENDING,
+                VulnerabilityScan.status == VulnScanStatus.RUNNING,
+            )
+        )
     ).first()
     return row
 
@@ -141,16 +147,17 @@ def create_scan_record(
     return scan
 
 
-async def _wait_for_mission(mission_id: str, timeout: float = 120.0) -> None:
+async def _wait_for_mission(mission_id: str, timeout: float = 120.0) -> bool:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         with Session(engine) as session:
             tasks = task_service.list_tasks_for_mission(session, mission_id)
             if tasks and all(t.status in _TERMINAL_TASK for t in tasks):
                 mission_service.recompute_status(session, mission_id)
-                return
+                return True
         await asyncio.sleep(2)
     logger.warning("Mission %s did not complete within timeout", mission_id)
+    return False
 
 
 async def _execute_scan(scan_id: str) -> None:
@@ -163,6 +170,8 @@ async def _execute_scan(scan_id: str) -> None:
             scan.started_at = _utcnow()
             session.add(scan)
             session.commit()
+            session.refresh(scan)
+            await _broadcast_scan(scan)
 
         try:
             with Session(engine) as session:
@@ -201,7 +210,19 @@ async def _execute_scan(scan_id: str) -> None:
                 session.commit()
 
             await dispatch.dispatch_tasks(task_ids)
-            await _wait_for_mission(mission_id)
+            if not await _wait_for_mission(mission_id):
+                with Session(engine) as session:
+                    scan = get_scan(session, scan_id)
+                    if scan is None:
+                        return
+                    scan.status = VulnScanStatus.FAILED
+                    scan.error_message = "recon mission did not complete within timeout"
+                    scan.finished_at = _utcnow()
+                    session.add(scan)
+                    session.commit()
+                    session.refresh(scan)
+                    await _broadcast_scan(scan)
+                return
 
             all_issues: list[VulnerabilityIssue] = []
             with Session(engine) as session:
@@ -272,9 +293,9 @@ async def trigger_scan(
     node_ids: list[str] | None = None,
 ) -> VulnerabilityScan:
     with Session(engine) as session:
-        running = get_running_scan(session)
-        if running:
-            raise ValueError("a vulnerability scan is already running")
+        active = get_active_scan(session)
+        if active:
+            raise ValueError("a vulnerability scan is already pending or running")
 
         targets = node_ids or []
         scan = create_scan_record(session, trigger, targets)

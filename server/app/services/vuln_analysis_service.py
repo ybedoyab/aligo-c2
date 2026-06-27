@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import uuid
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 from sqlmodel import Session
@@ -20,6 +21,19 @@ from app.services.vuln_osint_service import (
 )
 
 logger = logging.getLogger("aligo.vuln.analysis")
+
+
+def _sanitize_evidence_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    cleaned = url.strip()
+    try:
+        parsed = urlparse(cleaned)
+    except ValueError:
+        return None
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return None
+    return cleaned
 
 
 def _severity_from_hit(
@@ -270,7 +284,7 @@ def _issues_from_osint(
                 description=desc,
                 severity=severity,
                 source=_source_enum(source),
-                evidence_url=hit.get("url"),
+                evidence_url=_sanitize_evidence_url(hit.get("url")),
                 matched_fact=hit.get("query"),
                 confidence=confidence,
             )

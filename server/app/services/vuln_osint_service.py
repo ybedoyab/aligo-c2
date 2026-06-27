@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import time
@@ -23,6 +24,32 @@ _KEV_URL = (
 _KEV_TTL_SECONDS = 86400
 
 _kev_cache: dict[str, Any] = {"expires_at": 0.0, "cves": frozenset()}
+
+
+async def _http_get(
+    url: str,
+    *,
+    client: httpx.AsyncClient | None = None,
+    timeout: float = _TIMEOUT,
+    **kwargs: Any,
+) -> httpx.Response:
+    if client is not None:
+        return await client.get(url, **kwargs)
+    async with httpx.AsyncClient(timeout=timeout, headers={"User-Agent": _USER_AGENT}) as local:
+        return await local.get(url, **kwargs)
+
+
+async def _http_post(
+    url: str,
+    *,
+    client: httpx.AsyncClient | None = None,
+    timeout: float = _TIMEOUT,
+    **kwargs: Any,
+) -> httpx.Response:
+    if client is not None:
+        return await client.post(url, **kwargs)
+    async with httpx.AsyncClient(timeout=timeout, headers={"User-Agent": _USER_AGENT}) as local:
+        return await local.post(url, **kwargs)
 
 
 def _source_enabled(name: str) -> bool:
@@ -86,7 +113,12 @@ def _nvd_cvss_score(vuln: dict[str, Any]) -> float | None:
     return None
 
 
-async def search_nvd(query: str, limit: int = _HIT_LIMIT) -> list[dict[str, Any]]:
+async def search_nvd(
+    query: str,
+    limit: int = _HIT_LIMIT,
+    *,
+    client: httpx.AsyncClient | None = None,
+) -> list[dict[str, Any]]:
     if not _source_enabled("nvd"):
         return []
     headers = {"User-Agent": _USER_AGENT}
@@ -95,12 +127,11 @@ async def search_nvd(query: str, limit: int = _HIT_LIMIT) -> list[dict[str, Any]
     url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
     params = {"keywordSearch": query, "resultsPerPage": limit}
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            resp = await client.get(url, headers=headers, params=params)
-            if resp.status_code != 200:
-                logger.warning("NVD search failed: %s %s", resp.status_code, resp.text[:200])
-                return []
-            data = resp.json()
+        resp = await _http_get(url, client=client, headers=headers, params=params)
+        if resp.status_code != 200:
+            logger.warning("NVD search failed: %s %s", resp.status_code, resp.text[:200])
+            return []
+        data = resp.json()
     except httpx.HTTPError as exc:
         logger.warning("NVD search error: %s", exc)
         return []
@@ -130,7 +161,12 @@ async def search_nvd(query: str, limit: int = _HIT_LIMIT) -> list[dict[str, Any]
     return hits
 
 
-async def search_osv(node_facts: dict[str, Any], limit: int = _HIT_LIMIT) -> list[dict[str, Any]]:
+async def search_osv(
+    node_facts: dict[str, Any],
+    limit: int = _HIT_LIMIT,
+    *,
+    client: httpx.AsyncClient | None = None,
+) -> list[dict[str, Any]]:
     if not _source_enabled("osv"):
         return []
     normalized = normalize_plugin_facts(node_facts)
@@ -141,15 +177,15 @@ async def search_osv(node_facts: dict[str, Any], limit: int = _HIT_LIMIT) -> lis
 
     async def _query_osv(body: dict[str, Any]) -> list[dict[str, Any]]:
         try:
-            async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-                resp = await client.post(
-                    "https://api.osv.dev/v1/query",
-                    json=body,
-                    headers={"User-Agent": _USER_AGENT},
-                )
-                if resp.status_code != 200:
-                    return []
-                data = resp.json()
+            resp = await _http_post(
+                "https://api.osv.dev/v1/query",
+                client=client,
+                json=body,
+                headers={"User-Agent": _USER_AGENT},
+            )
+            if resp.status_code != 200:
+                return []
+            data = resp.json()
         except httpx.HTTPError as exc:
             logger.warning("OSV query error: %s", exc)
             return []
@@ -190,33 +226,33 @@ async def search_osv(node_facts: dict[str, Any], limit: int = _HIT_LIMIT) -> lis
     if os_name and len(hits) < limit:
         search_q = f"{os_name} {system.get('os_release', '')}".strip()
         try:
-            async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-                resp = await client.post(
-                    "https://api.osv.dev/v1/search",
-                    json={"query": search_q},
-                    headers={"User-Agent": _USER_AGENT},
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    for vuln in data.get("vulns", [])[:limit]:
-                        vid = vuln.get("id", "")
-                        summary = vuln.get("summary") or vid
-                        hits.append(
-                            {
-                                "title": f"{vid}: {summary[:120]}",
-                                "url": f"https://osv.dev/vulnerability/{vid}",
-                                "body": (vuln.get("details") or summary)[:500],
-                                "source": "osv",
-                                "cve_id": next(
-                                    (
-                                        a
-                                        for a in vuln.get("aliases", [])
-                                        if a.upper().startswith("CVE-")
-                                    ),
-                                    "",
+            resp = await _http_post(
+                "https://api.osv.dev/v1/search",
+                client=client,
+                json={"query": search_q},
+                headers={"User-Agent": _USER_AGENT},
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                for vuln in data.get("vulns", [])[:limit]:
+                    vid = vuln.get("id", "")
+                    summary = vuln.get("summary") or vid
+                    hits.append(
+                        {
+                            "title": f"{vid}: {summary[:120]}",
+                            "url": f"https://osv.dev/vulnerability/{vid}",
+                            "body": (vuln.get("details") or summary)[:500],
+                            "source": "osv",
+                            "cve_id": next(
+                                (
+                                    a
+                                    for a in vuln.get("aliases", [])
+                                    if a.upper().startswith("CVE-")
                                 ),
-                            }
-                        )
+                                "",
+                            ),
+                        }
+                    )
         except httpx.HTTPError as exc:
             logger.warning("OSV search error: %s", exc)
 
@@ -255,18 +291,22 @@ async def fetch_cisa_kev() -> frozenset[str]:
     return _kev_cache["cves"]
 
 
-async def search_hackernews(query: str, limit: int = _HIT_LIMIT) -> list[dict[str, Any]]:
+async def search_hackernews(
+    query: str,
+    limit: int = _HIT_LIMIT,
+    *,
+    client: httpx.AsyncClient | None = None,
+) -> list[dict[str, Any]]:
     if not _source_enabled("hackernews"):
         return []
     url = "https://hn.algolia.com/api/v1/search"
     params = {"query": query, "tags": "story", "hitsPerPage": limit}
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            resp = await client.get(url, params=params, headers={"User-Agent": _USER_AGENT})
-            if resp.status_code != 200:
-                logger.warning("HN search failed: %s", resp.status_code)
-                return []
-            data = resp.json()
+        resp = await _http_get(url, client=client, params=params, headers={"User-Agent": _USER_AGENT})
+        if resp.status_code != 200:
+            logger.warning("HN search failed: %s", resp.status_code)
+            return []
+        data = resp.json()
     except httpx.HTTPError as exc:
         logger.warning("HN search error: %s", exc)
         return []
@@ -286,7 +326,12 @@ async def search_hackernews(query: str, limit: int = _HIT_LIMIT) -> list[dict[st
     return hits
 
 
-async def search_stackexchange(query: str, limit: int = _HIT_LIMIT) -> list[dict[str, Any]]:
+async def search_stackexchange(
+    query: str,
+    limit: int = _HIT_LIMIT,
+    *,
+    client: httpx.AsyncClient | None = None,
+) -> list[dict[str, Any]]:
     if not _source_enabled("stackexchange"):
         return []
     params: dict[str, Any] = {
@@ -300,12 +345,11 @@ async def search_stackexchange(query: str, limit: int = _HIT_LIMIT) -> list[dict
         params["key"] = settings.stackexchange_key
     url = "https://api.stackexchange.com/2.3/search"
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            resp = await client.get(url, params=params, headers={"User-Agent": _USER_AGENT})
-            if resp.status_code != 200:
-                logger.warning("StackExchange search failed: %s", resp.status_code)
-                return []
-            data = resp.json()
+        resp = await _http_get(url, client=client, params=params, headers={"User-Agent": _USER_AGENT})
+        if resp.status_code != 200:
+            logger.warning("StackExchange search failed: %s", resp.status_code)
+            return []
+        data = resp.json()
     except httpx.HTTPError as exc:
         logger.warning("StackExchange search error: %s", exc)
         return []
@@ -359,7 +403,12 @@ async def search_github_advisory(cve_id: str) -> dict[str, Any] | None:
     return None
 
 
-async def search_github(query: str, limit: int = _HIT_LIMIT) -> list[dict[str, Any]]:
+async def search_github(
+    query: str,
+    limit: int = _HIT_LIMIT,
+    *,
+    client: httpx.AsyncClient | None = None,
+) -> list[dict[str, Any]]:
     if not _source_enabled("github") or not settings.github_token:
         return []
     headers = {
@@ -370,12 +419,11 @@ async def search_github(query: str, limit: int = _HIT_LIMIT) -> list[dict[str, A
     url = "https://api.github.com/search/issues"
     params = {"q": query, "per_page": limit, "sort": "updated"}
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            resp = await client.get(url, headers=headers, params=params)
-            if resp.status_code != 200:
-                logger.warning("GitHub search failed: %s %s", resp.status_code, resp.text[:200])
-                return []
-            data = resp.json()
+        resp = await _http_get(url, client=client, headers=headers, params=params)
+        if resp.status_code != 200:
+            logger.warning("GitHub search failed: %s %s", resp.status_code, resp.text[:200])
+            return []
+        data = resp.json()
     except httpx.HTTPError as exc:
         logger.warning("GitHub search error: %s", exc)
         return []
@@ -393,7 +441,12 @@ async def search_github(query: str, limit: int = _HIT_LIMIT) -> list[dict[str, A
     return hits
 
 
-async def search_reddit(query: str, limit: int = _HIT_LIMIT) -> list[dict[str, Any]]:
+async def search_reddit(
+    query: str,
+    limit: int = _HIT_LIMIT,
+    *,
+    client: httpx.AsyncClient | None = None,
+) -> list[dict[str, Any]]:
     """Public Reddit search; REDDIT_CLIENT_* env vars are not used."""
     if not _source_enabled("reddit"):
         return []
@@ -401,12 +454,11 @@ async def search_reddit(query: str, limit: int = _HIT_LIMIT) -> list[dict[str, A
     params = {"q": query, "limit": limit, "sort": "relevance"}
     headers = {"User-Agent": _USER_AGENT}
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            resp = await client.get(url, headers=headers, params=params)
-            if resp.status_code != 200:
-                logger.warning("Reddit search failed: %s", resp.status_code)
-                return []
-            data = resp.json()
+        resp = await _http_get(url, client=client, headers=headers, params=params)
+        if resp.status_code != 200:
+            logger.warning("Reddit search failed: %s", resp.status_code)
+            return []
+        data = resp.json()
     except httpx.HTTPError as exc:
         logger.warning("Reddit search error: %s", exc)
         return []
@@ -426,7 +478,12 @@ async def search_reddit(query: str, limit: int = _HIT_LIMIT) -> list[dict[str, A
     return hits
 
 
-async def search_x(query: str, limit: int = _HIT_LIMIT) -> list[dict[str, Any]]:
+async def search_x(
+    query: str,
+    limit: int = _HIT_LIMIT,
+    *,
+    client: httpx.AsyncClient | None = None,
+) -> list[dict[str, Any]]:
     if not _source_enabled("x") or not settings.x_bearer_token:
         return []
     url = "https://api.twitter.com/2/tweets/search/recent"
@@ -436,12 +493,11 @@ async def search_x(query: str, limit: int = _HIT_LIMIT) -> list[dict[str, Any]]:
     }
     params = {"query": query, "max_results": min(limit, 10)}
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            resp = await client.get(url, headers=headers, params=params)
-            if resp.status_code != 200:
-                logger.warning("X search failed: %s %s", resp.status_code, resp.text[:200])
-                return []
-            data = resp.json()
+        resp = await _http_get(url, client=client, headers=headers, params=params)
+        if resp.status_code != 200:
+            logger.warning("X search failed: %s %s", resp.status_code, resp.text[:200])
+            return []
+        data = resp.json()
     except httpx.HTTPError as exc:
         logger.warning("X search error: %s", exc)
         return []
@@ -463,34 +519,39 @@ def detect_cves(text: str) -> list[str]:
     return list({m.upper() for m in _CVE_RE.findall(text)})
 
 
+_QUERY_SEARCHERS = (
+    search_nvd,
+    search_github,
+    search_reddit,
+    search_x,
+    search_hackernews,
+    search_stackexchange,
+)
+
+
 async def run_osint_for_node(node_facts: dict[str, Any]) -> list[dict[str, Any]]:
     """Run all enabled OSINT sources for facts from one node."""
     all_hits: list[dict[str, Any]] = []
     queries = _queries_from_facts(node_facts)
+    sem = asyncio.Semaphore(4)
 
-    osv_hits = await search_osv(node_facts)
-    for hit in osv_hits:
-        hit["query"] = "osv:package/version"
-        all_hits.append(hit)
+    async with httpx.AsyncClient(timeout=_TIMEOUT, headers={"User-Agent": _USER_AGENT}) as client:
+        osv_hits = await search_osv(node_facts, client=client)
+        for hit in osv_hits:
+            hit["query"] = "osv:package/version"
+            all_hits.append(hit)
 
-    for query in queries:
-        for hit in await search_nvd(query):
-            hit["query"] = query
-            all_hits.append(hit)
-        for hit in await search_github(query):
-            hit["query"] = query
-            all_hits.append(hit)
-        for hit in await search_reddit(query):
-            hit["query"] = query
-            all_hits.append(hit)
-        for hit in await search_x(query):
-            hit["query"] = query
-            all_hits.append(hit)
-        for hit in await search_hackernews(query):
-            hit["query"] = query
-            all_hits.append(hit)
-        for hit in await search_stackexchange(query):
-            hit["query"] = query
-            all_hits.append(hit)
+        async def run_query(query: str) -> list[dict[str, Any]]:
+            async with sem:
+                hits: list[dict[str, Any]] = []
+                for search_fn in _QUERY_SEARCHERS:
+                    for hit in await search_fn(query, client=client):
+                        hit["query"] = query
+                        hits.append(hit)
+                return hits
+
+        batches = await asyncio.gather(*(run_query(q) for q in queries))
+        for batch in batches:
+            all_hits.extend(batch)
 
     return all_hits

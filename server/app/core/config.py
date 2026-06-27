@@ -66,7 +66,7 @@ class Settings(BaseSettings):
     heartbeat_monitor_interval_seconds: int = 5
 
     # Vulnerability scan / OSINT (lab use only)
-    vuln_scan_cron_enabled: bool = True
+    vuln_scan_cron_enabled: bool = False
     vuln_scan_interval_hours: float = 24.0
     github_token: str = ""
     reddit_client_id: str = ""
