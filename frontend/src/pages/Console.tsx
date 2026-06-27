@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
+import { useI18n } from "../i18n";
 import { useC2 } from "../store";
 import {
   ALLOWED_PLUGINS,
@@ -7,7 +8,6 @@ import {
   type PluginName,
   type TaskStatus,
 } from "../types";
-import { formatTime } from "../utils";
 import { StatusBadge } from "../components/HealthBadge";
 import { TaskEvidenceModal } from "../components/TaskEvidenceModal";
 
@@ -32,10 +32,11 @@ const DEFAULT_ARGS: Partial<Record<PluginName, string>> = {
 };
 
 function parseConsoleCommand(
-  line: string
+  line: string,
+  t: (key: string, params?: Record<string, string | number>) => string
 ): { ok: true; action: string; payload?: Record<string, unknown> } | { ok: false; error: string } {
   const trimmed = line.trim();
-  if (!trimmed) return { ok: false, error: "empty command" };
+  if (!trimmed) return { ok: false, error: t("errors.emptyCommand") };
 
   const verifyMatch = /^verify\s+task\s+(\S+)$/i.exec(trimmed);
   if (verifyMatch) {
@@ -53,7 +54,10 @@ function parseConsoleCommand(
     if (!ALLOWED_PLUGINS.includes(plugin as PluginName)) {
       return {
         ok: false,
-        error: `unknown plugin '${plugin}'. Allowed: ${ALLOWED_PLUGINS.join(", ")}`,
+        error: t("errors.unknownPlugin", {
+          plugin,
+          allowed: ALLOWED_PLUGINS.join(", "),
+        }),
       };
     }
     return {
@@ -63,14 +67,11 @@ function parseConsoleCommand(
     };
   }
 
-  return {
-    ok: false,
-    error:
-      "Unknown command. Try: run health_check on node-001 | run system_info on all | verify task <id> | replay mission <id>",
-  };
+  return { ok: false, error: t("errors.unknownCommand") };
 }
 
 export function Console() {
+  const { t, formatTime, status, translateError } = useI18n();
   const { nodes, tasks, refreshAll } = useC2();
   const [target, setTarget] = useState<string>("all");
   const [plugin, setPlugin] = useState<PluginName>("health_check");
@@ -86,7 +87,7 @@ export function Console() {
   const dispatchPlugin = useCallback(
     async (pluginName: PluginName, args: Record<string, unknown>, targetIds: string[]) => {
       if (targetIds.length === 0) {
-        throw new Error("no target nodes online");
+        throw new Error(t("errors.noTargetNodesOnline"));
       }
       try {
         for (const nodeId of targetIds) {
@@ -136,7 +137,7 @@ export function Console() {
         throw e;
       }
     },
-    [refreshAll]
+    [refreshAll, t]
   );
 
   const runForm = async () => {
@@ -144,19 +145,18 @@ export function Console() {
     setCmdMsg("");
     try {
       const args = JSON.parse(argsText) as Record<string, unknown>;
-      const targets =
-        target === "all" ? onlineNodes.map((a) => a.id) : [target];
+      const targets = target === "all" ? onlineNodes.map((a) => a.id) : [target];
       await dispatchPlugin(plugin, args, targets);
-      setCmdMsg(`Dispatched ${plugin} to ${targets.length} node(s).`);
+      setCmdMsg(t("console.dispatched", { plugin, count: targets.length }));
     } catch (e) {
-      setCmdMsg((e as Error).message);
+      setCmdMsg(translateError((e as Error).message));
     } finally {
       setBusy(false);
     }
   };
 
   const runCmdLine = async () => {
-    const parsed = parseConsoleCommand(cmdLine);
+    const parsed = parseConsoleCommand(cmdLine, t);
     if (!parsed.ok) {
       setCmdMsg(parsed.error);
       return;
@@ -168,29 +168,34 @@ export function Console() {
         const pluginName = parsed.payload!.plugin as PluginName;
         const tgt = parsed.payload!.target as string;
         const args = JSON.parse(DEFAULT_ARGS[pluginName] ?? "{}") as Record<string, unknown>;
-        const targets =
-          tgt === "all" ? onlineNodes.map((a) => a.id) : [tgt];
+        const targets = tgt === "all" ? onlineNodes.map((a) => a.id) : [tgt];
         await dispatchPlugin(pluginName, args, targets);
-        setCmdMsg(`Ran ${pluginName} on ${targets.join(", ")}`);
+        setCmdMsg(t("console.ranOn", { plugin: pluginName, targets: targets.join(", ") }));
       } else if (parsed.action === "verify_task") {
         const taskId = parsed.payload!.task_id as string;
         const ev = await api.getTaskEvidence(taskId);
         if (ev.ledger_event_id) {
           const v = await api.verifyLedgerEvent(ev.ledger_event_id);
-          setCmdMsg(`Verify ${taskId}: ${v.status} — ${v.detail}`);
+          setCmdMsg(
+            t("console.verifyResult", {
+              taskId,
+              status: status(v.status),
+              detail: v.detail,
+            })
+          );
         } else {
-          setCmdMsg(`Task ${taskId} has no ledger event yet.`);
+          setCmdMsg(t("console.noLedgerEvent", { taskId }));
         }
       } else if (parsed.action === "replay_mission") {
         const missionId = parsed.payload!.mission_id as string;
-        const missionTasks = tasks.filter((t) => t.mission_id === missionId);
+        const missionTasks = tasks.filter((task) => task.mission_id === missionId);
         setCmdMsg(
-          `Mission ${missionId}: ${missionTasks.length} task(s) in history. Open Dashboard for timeline replay.`
+          t("console.replayMission", { missionId, count: missionTasks.length })
         );
       }
       setCmdLine("");
     } catch (e) {
-      setCmdMsg((e as Error).message);
+      setCmdMsg(translateError((e as Error).message));
     } finally {
       setBusy(false);
     }
@@ -199,9 +204,9 @@ export function Console() {
   useEffect(() => {
     setHistory((h) =>
       h.map((row) => {
-        const t = tasks.find((x) => x.id === row.task_id);
-        if (!t || row.status === "dispatching") return row;
-        return { ...row, status: t.status };
+        const task = tasks.find((x) => x.id === row.task_id);
+        if (!task || row.status === "dispatching") return row;
+        return { ...row, status: task.status };
       })
     );
   }, [tasks]);
@@ -209,32 +214,27 @@ export function Console() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-white">Operator Console</h1>
-        <p className="text-sm text-soc-muted">
-          Safe, plugin-based operator interface — not a remote shell. Commands map to
-          allowlisted plugins only.
-        </p>
+        <h1 className="text-xl font-semibold text-white">{t("console.title")}</h1>
+        <p className="text-sm text-soc-muted">{t("console.description")}</p>
       </div>
 
       <div className="card p-5 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <label className="flex flex-col gap-1 text-xs text-soc-muted">
-            Target
-            <select
-              className="input"
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-            >
-              <option value="all">All online nodes ({onlineNodes.length})</option>
+            {t("console.target")}
+            <select className="input" value={target} onChange={(e) => setTarget(e.target.value)}>
+              <option value="all">
+                {t("console.allOnline", { count: onlineNodes.length })}
+              </option>
               {nodes.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.id} ({a.status})
+                  {a.id} ({status(a.status)})
                 </option>
               ))}
             </select>
           </label>
           <label className="flex flex-col gap-1 text-xs text-soc-muted">
-            Plugin
+            {t("console.plugin")}
             <select
               className="input"
               value={plugin}
@@ -253,12 +253,12 @@ export function Console() {
           </label>
           <div className="flex items-end">
             <button className="btn-primary w-full" onClick={runForm} disabled={busy}>
-              {busy ? "Running…" : "Run"}
+              {busy ? t("common.running") : t("common.run")}
             </button>
           </div>
         </div>
         <label className="flex flex-col gap-1 text-xs text-soc-muted">
-          Arguments (JSON)
+          {t("console.argumentsJson")}
           <textarea
             className="input font-mono text-xs min-h-[80px]"
             value={argsText}
@@ -268,53 +268,52 @@ export function Console() {
       </div>
 
       <div className="card p-4">
-        <div className="text-xs text-soc-muted mb-2">Terminal-style commands</div>
-        <div className="flex gap-2">
+        <div className="text-xs text-soc-muted mb-2">{t("console.terminalCommands")}</div>
+        <div className="flex flex-col sm:flex-row gap-2">
           <input
-            className="input flex-1 font-mono text-sm"
-            placeholder="run health_check on node-001"
+            className="input flex-1 font-mono text-sm min-w-0"
+            placeholder={t("console.placeholder")}
             value={cmdLine}
             onChange={(e) => setCmdLine(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && runCmdLine()}
           />
-          <button className="btn-ghost" onClick={runCmdLine} disabled={busy}>
-            Execute
+          <button className="btn-ghost shrink-0" onClick={runCmdLine} disabled={busy}>
+            {t("common.execute")}
           </button>
         </div>
         {cmdMsg && <div className="mt-2 text-xs text-soc-muted">{cmdMsg}</div>}
       </div>
 
-      <div className="card overflow-hidden">
-        <div className="px-4 py-3 border-b border-soc-border text-sm font-semibold text-white">
-          Command history
+      <div className="card-static overflow-hidden">
+        <div className="panel-header">
+          {t("console.commandHistory")}
         </div>
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[560px]">
           <thead>
             <tr className="text-left text-xs uppercase text-soc-muted border-b border-soc-border">
-              <th className="px-4 py-2">Time</th>
-              <th className="px-4 py-2">Target</th>
-              <th className="px-4 py-2">Plugin</th>
-              <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2 text-right">Result</th>
+              <th className="px-4 py-2">{t("console.time")}</th>
+              <th className="px-4 py-2">{t("console.target")}</th>
+              <th className="px-4 py-2">{t("console.plugin")}</th>
+              <th className="px-4 py-2">{t("taskConsole.status")}</th>
+              <th className="px-4 py-2 text-right">{t("console.result")}</th>
             </tr>
           </thead>
           <tbody>
             {history.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-soc-muted">
-                  No commands yet.
+                  {t("console.noCommands")}
                 </td>
               </tr>
             )}
             {history.map((row) => (
-              <tr key={row.id} className="border-b border-soc-border/40">
+              <tr key={row.id} className="border-b border-soc-borderSubtle/60 row-hover">
                 <td className="px-4 py-2 text-xs text-soc-muted">
                   {formatTime(row.timestamp)}
                 </td>
                 <td className="px-4 py-2 font-mono text-xs">{row.target}</td>
-                <td className="px-4 py-2 font-mono text-xs text-soc-accent">
-                  {row.plugin}
-                </td>
+                <td className="px-4 py-2 font-mono text-xs text-soc-accent">{row.plugin}</td>
                 <td className="px-4 py-2">
                   <StatusBadge status={row.status} />
                 </td>
@@ -324,7 +323,7 @@ export function Console() {
                       className="btn-ghost py-0.5 text-xs"
                       onClick={() => setEvidenceTaskId(row.task_id)}
                     >
-                      View evidence
+                      {t("common.viewEvidence")}
                     </button>
                   )}
                 </td>
@@ -332,6 +331,7 @@ export function Console() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       <TaskEvidenceModal taskId={evidenceTaskId} onClose={() => setEvidenceTaskId(null)} />

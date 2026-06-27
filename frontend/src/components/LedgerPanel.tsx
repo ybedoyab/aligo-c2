@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { api } from "../api/client";
 import type { LedgerEvent, VerifyResult } from "../types";
-import { formatTime, shortHash } from "../utils";
+import { useI18n } from "../i18n";
+import { shortHash } from "../utils";
 import { IntegrityBadge } from "./HealthBadge";
 
 function isAnchored(status: string) {
@@ -17,11 +18,12 @@ function LedgerRow({
   highlighted?: boolean;
   onAnchored?: () => void;
 }) {
+  const { t, formatTime } = useI18n();
   const [result, setResult] = useState<VerifyResult | null>(null);
   const [busy, setBusy] = useState(false);
   const plugin =
     (event.payload?.data as Record<string, unknown> | undefined)?.plugin ??
-    (event.event_type.includes("TASK") ? "task" : "");
+    (event.event_type.includes("TASK") ? t("common.task") : "");
 
   const verify = async () => {
     setBusy(true);
@@ -48,8 +50,8 @@ function LedgerRow({
 
   return (
     <tr
-      className={`border-b border-soc-border/40 last:border-0 hover:bg-soc-panel2/50 align-top ${
-        highlighted ? "bg-soc-accent/10" : ""
+      className={`border-b border-soc-borderSubtle/60 last:border-0 row-hover align-top ${
+        highlighted ? "bg-soc-brand/10" : ""
       }`}
     >
       <td className="px-4 py-3">
@@ -62,14 +64,16 @@ function LedgerRow({
       <td className="px-4 py-3 text-xs font-mono">
         <div className="text-soc-accent">{String(plugin)}</div>
         <div className="text-soc-muted">
-          local: {shortHash(event.payload_hash)}
+          {t("ledger.localHash", { hash: shortHash(event.payload_hash) })}
         </div>
       </td>
       <td className="px-4 py-3 text-xs font-mono">
         {isAnchored(event.onchain_status) ? (
           <>
             <IntegrityBadge status="anchored" />
-            <div className="text-soc-muted mt-1">block #{event.block_number}</div>
+            <div className="text-soc-muted mt-1">
+              {t("common.block", { num: event.block_number ?? 0 })}
+            </div>
           </>
         ) : event.onchain_status === "pending_chain" ? (
           <IntegrityBadge status="pending_chain" />
@@ -86,11 +90,11 @@ function LedgerRow({
           {result && <IntegrityBadge status={result.status} />}
           {event.onchain_status === "pending_chain" && (
             <button className="btn-ghost py-0.5 text-[10px]" onClick={anchor} disabled={busy}>
-              Anchor
+              {t("common.anchor")}
             </button>
           )}
           <button className="btn-ghost py-0.5 text-[10px]" onClick={verify} disabled={busy}>
-            Verify
+            {t("common.verify")}
           </button>
         </div>
         {result && (
@@ -110,27 +114,29 @@ export function LedgerPanel({
   highlightId?: string;
   onAnchored?: () => void;
 }) {
+  const { t } = useI18n();
+
   return (
-    <div className="card overflow-hidden">
-      <div className="px-4 py-3 border-b border-soc-border text-sm font-semibold text-white">
-        Event log
+    <div className="card-static overflow-hidden">
+      <div className="panel-header">
+        {t("ledger.eventLog")}
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm min-w-[640px]">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-soc-muted border-b border-soc-border">
-              <th className="px-4 py-3">Event</th>
-              <th className="px-4 py-3">Plugin / hash</th>
-              <th className="px-4 py-3">On-chain</th>
-              <th className="px-4 py-3">Time</th>
-              <th className="px-4 py-3 text-right">Actions</th>
+              <th className="px-4 py-3">{t("ledger.event")}</th>
+              <th className="px-4 py-3">{t("ledger.pluginHash")}</th>
+              <th className="px-4 py-3">{t("ledger.onChain")}</th>
+              <th className="px-4 py-3">{t("console.time")}</th>
+              <th className="px-4 py-3 text-right">{t("ledger.actions")}</th>
             </tr>
           </thead>
           <tbody>
             {events.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-soc-muted">
-                  No ledger events yet.
+                  {t("ledger.noEvents")}
                 </td>
               </tr>
             ) : (

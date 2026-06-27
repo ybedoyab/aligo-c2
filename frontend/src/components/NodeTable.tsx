@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
+import { useI18n } from "../i18n";
 import { type Node, type NodePolicy, type PluginName } from "../types";
-import { timeAgo } from "../utils";
 import { HealthBadge, NodeMetaBadges, StatusBadge } from "./HealthBadge";
 
 function defaultArgs(plugin: PluginName): Record<string, unknown> {
@@ -19,6 +19,7 @@ function QuickTask({
   node: Node;
   policies: NodePolicy[];
 }) {
+  const { t, translateError } = useI18n();
   const policy = policies.find((p) => p.id === node.policy_id);
   const allowed = (policy?.plugins ?? ["health_check", "system_info", "echo"]) as PluginName[];
   const [plugin, setPlugin] = useState<PluginName>(allowed[0] ?? "health_check");
@@ -38,10 +39,9 @@ function QuickTask({
         plugin,
         args: defaultArgs(plugin),
       });
-      setMsg("sent");
+      setMsg(t("common.sent"));
     } catch (e) {
-      const text = (e as Error).message;
-      setMsg(text.includes("blocked") ? "blocked by policy" : text);
+      setMsg(translateError((e as Error).message));
     } finally {
       setBusy(false);
       setTimeout(() => setMsg(""), 3500);
@@ -66,11 +66,11 @@ function QuickTask({
         onClick={run}
         disabled={busy || node.status === "offline" || !node.enabled}
       >
-        {busy ? "…" : "Run"}
+        {busy ? "…" : t("common.run")}
       </button>
       {msg && (
         <span
-          className={`text-xs ${msg.includes("blocked") ? "text-soc-warn" : "text-soc-muted"}`}
+          className={`text-xs ${msg.includes(t("common.blockedByPolicy")) ? "text-soc-warn" : "text-soc-muted"}`}
         >
           {msg}
         </span>
@@ -80,39 +80,41 @@ function QuickTask({
 }
 
 export function NodeTable({ nodes }: { nodes: Node[] }) {
+  const { t, timeAgo } = useI18n();
   const [policies, setPolicies] = useState<NodePolicy[]>([]);
   useEffect(() => {
     api.listPolicies().then(setPolicies).catch(() => {});
   }, []);
 
   return (
-    <div className="card overflow-hidden">
-      <table className="w-full text-sm">
+    <div className="card-static overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[720px]">
         <thead>
           <tr className="text-left text-xs uppercase tracking-wide text-soc-muted border-b border-soc-border">
-            <th className="px-4 py-3">Node</th>
-            <th className="px-4 py-3">Status</th>
-            <th className="px-4 py-3">Registry</th>
-            <th className="px-4 py-3">Policy</th>
-            <th className="px-4 py-3">Health</th>
-            <th className="px-4 py-3">OS</th>
-            <th className="px-4 py-3">Last heartbeat</th>
-            <th className="px-4 py-3 text-right">Quick task</th>
+            <th className="px-4 py-3">{t("nodes.node")}</th>
+            <th className="px-4 py-3">{t("nodes.status")}</th>
+            <th className="px-4 py-3">{t("nodes.registry")}</th>
+            <th className="px-4 py-3">{t("nodes.policy")}</th>
+            <th className="px-4 py-3">{t("nodes.health")}</th>
+            <th className="px-4 py-3">{t("nodes.os")}</th>
+            <th className="px-4 py-3">{t("nodes.lastHeartbeat")}</th>
+            <th className="px-4 py-3 text-right">{t("nodes.quickTask")}</th>
           </tr>
         </thead>
         <tbody>
           {nodes.length === 0 && (
             <tr>
               <td colSpan={8} className="px-4 py-8 text-center text-soc-muted">
-                No nodes yet. Start one with{" "}
-                <code className="text-soc-accent">python node.py --node-id node-001</code>
+                {t("nodes.empty")}{" "}
+                <code className="text-soc-accent">{t("nodes.emptyCli")}</code>
               </td>
             </tr>
           )}
           {nodes.map((node) => (
             <tr
               key={node.id}
-              className="border-b border-soc-border/50 last:border-0 hover:bg-soc-panel2/50"
+              className="border-b border-soc-borderSubtle/60 last:border-0 row-hover"
             >
               <td className="px-4 py-3">
                 <Link
@@ -138,7 +140,7 @@ export function NodeTable({ nodes }: { nodes: Node[] }) {
               <td className="px-4 py-3">
                 <HealthBadge score={node.health_score} />
               </td>
-              <td className="px-4 py-3 text-soc-muted">{node.os || "-"}</td>
+              <td className="px-4 py-3 text-soc-muted">{node.os || t("common.dash")}</td>
               <td className="px-4 py-3 text-soc-muted">{timeAgo(node.last_seen)}</td>
               <td className="px-4 py-3">
                 <QuickTask node={node} policies={policies} />
@@ -147,6 +149,7 @@ export function NodeTable({ nodes }: { nodes: Node[] }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

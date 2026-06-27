@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { NodeDetail, NodePolicy, NodeUpdate } from "../types";
-import { timeAgo } from "../utils";
+import { useI18n } from "../i18n";
 import {
   HealthBadge,
   IntegrityBadge,
@@ -12,6 +12,7 @@ import {
 import { TaskEvidenceModal } from "../components/TaskEvidenceModal";
 
 export function NodeDetailPage() {
+  const { t, timeAgo, translateError } = useI18n();
   const { nodeId } = useParams<{ nodeId: string }>();
   const navigate = useNavigate();
   const [detail, setDetail] = useState<NodeDetail | null>(null);
@@ -38,7 +39,7 @@ export function NodeDetailPage() {
           policy_id: d.node.policy_id,
         });
       })
-      .catch((e) => setError((e as Error).message));
+      .catch((e) => setError(translateError((e as Error).message)));
   };
 
   useEffect(() => {
@@ -57,7 +58,7 @@ export function NodeDetailPage() {
       });
       load();
     } catch (e) {
-      setError((e as Error).message);
+      setError(translateError((e as Error).message));
     } finally {
       setBusy(false);
     }
@@ -66,15 +67,15 @@ export function NodeDetailPage() {
   const remove = async () => {
     if (!nodeId || !detail) return;
     if (detail.node.status !== "offline") {
-      setError("Only offline nodes can be deleted from the registry.");
+      setError(t("errors.deleteOfflineOnly"));
       return;
     }
-    if (!confirm(`Delete registry entry for ${nodeId}?`)) return;
+    if (!confirm(t("nodeDetail.deleteConfirm", { nodeId }))) return;
     try {
       await api.deleteNode(nodeId);
       navigate("/nodes");
     } catch (e) {
-      setError((e as Error).message);
+      setError(translateError((e as Error).message));
     }
   };
 
@@ -83,14 +84,14 @@ export function NodeDetailPage() {
       <div className="text-soc-err">
         {error}{" "}
         <Link to="/nodes" className="text-soc-accent">
-          Back
+          {t("common.back")}
         </Link>
       </div>
     );
   }
 
   if (!detail) {
-    return <div className="text-soc-muted">Loading node…</div>;
+    return <div className="text-soc-muted">{t("common.loadingNode")}</div>;
   }
 
   const { node, stats, last_heartbeat, health, tasks } = detail;
@@ -100,7 +101,7 @@ export function NodeDetailPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <Link to="/nodes" className="text-xs text-soc-accent hover:underline">
-            ← Nodes
+            {t("nodeDetail.backToNodes")}
           </Link>
           <h1 className="text-xl font-semibold text-white font-mono mt-1">
             {node.alias || node.id}
@@ -119,15 +120,26 @@ export function NodeDetailPage() {
 
       {error && <div className="text-sm text-soc-err">{error}</div>}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Health score" value={<HealthBadge score={node.health_score} />} />
-        <StatCard label="Total tasks" value={stats.total_tasks} />
-        <StatCard label="Successful" value={stats.successful_tasks} accent="text-soc-ok" />
-        <StatCard label="Failed" value={stats.failed_tasks} accent="text-soc-err" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          label={t("nodeDetail.healthScore")}
+          value={<HealthBadge score={node.health_score} />}
+        />
+        <StatCard label={t("nodeDetail.totalTasks")} value={stats.total_tasks} />
+        <StatCard
+          label={t("nodeDetail.successful")}
+          value={stats.successful_tasks}
+          accent="text-soc-ok"
+        />
+        <StatCard
+          label={t("nodeDetail.failed")}
+          value={stats.failed_tasks}
+          accent="text-soc-err"
+        />
       </div>
 
       <div className="card p-4">
-        <h3 className="text-sm font-semibold text-white mb-3">Health score breakdown</h3>
+        <h3 className="text-sm font-semibold text-white mb-3">{t("nodeDetail.healthBreakdown")}</h3>
         <div className="space-y-2">
           {health.factors.map((f) => (
             <div key={f.label} className="flex items-center justify-between text-sm gap-4">
@@ -142,24 +154,34 @@ export function NodeDetailPage() {
       </div>
 
       <div className="card p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <h3 className="md:col-span-2 text-sm font-semibold text-white">Registry metadata</h3>
-        <Field label="Alias" value={edit.alias ?? ""} onChange={(v) => setEdit((e) => ({ ...e, alias: v }))} />
-        <Field label="Group" value={edit.group ?? ""} onChange={(v) => setEdit((e) => ({ ...e, group: v }))} />
+        <h3 className="md:col-span-2 text-sm font-semibold text-white">
+          {t("nodeDetail.registryMetadata")}
+        </h3>
+        <Field
+          label={t("nodeDetail.alias")}
+          value={edit.alias ?? ""}
+          onChange={(v) => setEdit((e) => ({ ...e, alias: v }))}
+        />
+        <Field
+          label={t("nodes.group")}
+          value={edit.group ?? ""}
+          onChange={(v) => setEdit((e) => ({ ...e, group: v }))}
+        />
         <label className="flex flex-col gap-1 text-xs text-soc-muted md:col-span-2">
-          Tags (comma-separated)
+          {t("nodeDetail.tagsComma")}
           <input
             className="input"
             value={(edit.tags ?? []).join(", ")}
             onChange={(e) =>
               setEdit((x) => ({
                 ...x,
-                tags: e.target.value.split(",").map((t) => t.trim()),
+                tags: e.target.value.split(",").map((tag) => tag.trim()),
               }))
             }
           />
         </label>
         <label className="flex flex-col gap-1 text-xs text-soc-muted md:col-span-2">
-          Description
+          {t("nodeDetail.description")}
           <textarea
             className="input min-h-[60px]"
             value={edit.description ?? ""}
@@ -167,7 +189,7 @@ export function NodeDetailPage() {
           />
         </label>
         <label className="flex flex-col gap-1 text-xs text-soc-muted">
-          Policy
+          {t("nodes.policy")}
           <select
             className="input"
             value={edit.policy_id ?? "basic_safe"}
@@ -181,7 +203,7 @@ export function NodeDetailPage() {
           </select>
         </label>
         <label className="flex flex-col gap-1 text-xs text-soc-muted">
-          Node type
+          {t("nodeDetail.nodeType")}
           <select
             className="input"
             value={edit.node_type ?? "real"}
@@ -192,9 +214,9 @@ export function NodeDetailPage() {
               }))
             }
           >
-            <option value="real">real</option>
-            <option value="simulated">simulated</option>
-            <option value="ai_analyst">ai_analyst (placeholder)</option>
+            <option value="real">{t("nodeType.real")}</option>
+            <option value="simulated">{t("nodeType.simulated")}</option>
+            <option value="ai_analyst">{t("nodeType.ai_analyst_placeholder")}</option>
           </select>
         </label>
         <label className="flex items-center gap-2 text-sm text-soc-muted">
@@ -203,7 +225,7 @@ export function NodeDetailPage() {
             checked={edit.enabled ?? true}
             onChange={(e) => setEdit((x) => ({ ...x, enabled: e.target.checked }))}
           />
-          Enabled in registry
+          {t("nodeDetail.enabledInRegistry")}
         </label>
         <label className="flex items-center gap-2 text-sm text-soc-muted">
           <input
@@ -211,72 +233,78 @@ export function NodeDetailPage() {
             checked={edit.trusted ?? true}
             onChange={(e) => setEdit((x) => ({ ...x, trusted: e.target.checked }))}
           />
-          Trusted
+          {t("status.trusted")}
         </label>
         <div className="md:col-span-2 flex gap-2">
           <button className="btn-primary text-xs" onClick={save} disabled={busy}>
-            {busy ? "Saving…" : "Save metadata"}
+            {busy ? t("common.saving") : t("nodeDetail.saveMetadata")}
           </button>
           {node.status === "offline" && (
             <button className="btn-ghost text-xs text-soc-err" onClick={remove}>
-              Delete offline node
+              {t("nodeDetail.deleteOfflineNode")}
             </button>
           )}
         </div>
       </div>
 
-      <div className="card p-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-        <Info label="OS" value={node.os} />
-        <Info label="User" value={node.username} />
-        <Info label="Last seen" value={timeAgo(node.last_seen)} />
-        <Info label="Last heartbeat" value={timeAgo(last_heartbeat)} />
+      <div className="card p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+        <Info label={t("nodes.os")} value={node.os} dash={t("common.dash")} />
+        <Info label={t("nodeDetail.user")} value={node.username} dash={t("common.dash")} />
+        <Info label={t("nodes.lastSeen")} value={timeAgo(node.last_seen)} />
+        <Info label={t("nodes.lastHeartbeat")} value={timeAgo(last_heartbeat)} />
       </div>
 
-      <div className="card overflow-hidden">
-        <div className="px-4 py-3 border-b border-soc-border font-semibold text-white text-sm">
-          Task history
+      <div className="card-static overflow-hidden">
+        <div className="panel-header">
+          {t("nodeDetail.taskHistory")}
         </div>
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[640px]">
           <thead>
             <tr className="text-left text-xs uppercase text-soc-muted border-b border-soc-border">
-              <th className="px-4 py-2">Plugin</th>
-              <th className="px-4 py-2">Mission</th>
-              <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2">Duration</th>
-              <th className="px-4 py-2">Integrity</th>
-              <th className="px-4 py-2 text-right">Evidence</th>
+              <th className="px-4 py-2">{t("nodeDetail.plugin")}</th>
+              <th className="px-4 py-2">{t("nodeDetail.mission")}</th>
+              <th className="px-4 py-2">{t("taskConsole.status")}</th>
+              <th className="px-4 py-2">{t("nodeDetail.duration")}</th>
+              <th className="px-4 py-2">{t("nodeDetail.integrity")}</th>
+              <th className="px-4 py-2 text-right">{t("nodeDetail.evidence")}</th>
             </tr>
           </thead>
           <tbody>
             {tasks.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-soc-muted">
-                  No tasks yet for this node.
+                  {t("nodeDetail.noTasks")}
                 </td>
               </tr>
             )}
-            {tasks.map((t) => (
+            {tasks.map((task) => (
               <tr
-                key={t.task_id}
-                className="border-b border-soc-border/40 hover:bg-soc-panel2/50 cursor-pointer"
-                onClick={() => setEvidenceTaskId(t.task_id)}
+                key={task.task_id}
+                className="border-b border-soc-borderSubtle/60 row-hover cursor-pointer"
+                onClick={() => setEvidenceTaskId(task.task_id)}
               >
-                <td className="px-4 py-2 font-mono text-soc-accent">{t.plugin}</td>
-                <td className="px-4 py-2 text-xs text-soc-muted font-mono">{t.mission_id}</td>
+                <td className="px-4 py-2 font-mono text-soc-accent">{task.plugin}</td>
+                <td className="px-4 py-2 text-xs text-soc-muted font-mono">{task.mission_id}</td>
                 <td className="px-4 py-2">
-                  <StatusBadge status={t.status} />
+                  <StatusBadge status={task.status} />
                 </td>
                 <td className="px-4 py-2 text-xs text-soc-muted">
-                  {t.duration_ms != null ? `${t.duration_ms} ms` : "—"}
+                  {task.duration_ms != null
+                    ? `${task.duration_ms} ${t("common.ms")}`
+                    : t("common.dash")}
                 </td>
                 <td className="px-4 py-2">
-                  <IntegrityBadge status={t.integrity_status} />
+                  <IntegrityBadge status={task.integrity_status} />
                 </td>
-                <td className="px-4 py-2 text-right text-xs text-soc-accent">View →</td>
+                <td className="px-4 py-2 text-right text-xs text-soc-accent">
+                  {t("common.viewArrow")}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       <TaskEvidenceModal taskId={evidenceTaskId} onClose={() => setEvidenceTaskId(null)} />
@@ -301,11 +329,11 @@ function StatCard({
   );
 }
 
-function Info({ label, value }: { label: string; value: string }) {
+function Info({ label, value, dash }: { label: string; value: string; dash?: string }) {
   return (
     <div>
       <div className="text-xs text-soc-muted">{label}</div>
-      <div className="text-white">{value || "—"}</div>
+      <div className="text-white">{value || dash || "—"}</div>
     </div>
   );
 }

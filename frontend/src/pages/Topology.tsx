@@ -1,10 +1,12 @@
 import { Link } from "react-router-dom";
 import { HealthBadge, StatusBadge } from "../components/HealthBadge";
+import { useI18n } from "../i18n";
 import { useC2 } from "../store";
 
 const GATEWAY_ID = "gateway-sim-001";
 
 export function Topology() {
+  const { t, status } = useI18n();
   const { nodes, health } = useC2();
   const online = nodes.filter((n) => n.status === "online" && n.enabled);
   const computerNodes = online.filter(
@@ -16,36 +18,41 @@ export function Topology() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-white">Topology</h1>
-        <p className="text-sm text-soc-muted">
-          Lab view of operator UI, C2 server, computer nodes, IoT gateway branch, and blockchain ledger.
-        </p>
+        <h1 className="text-xl font-semibold text-white">{t("topology.title")}</h1>
+        <p className="text-sm text-soc-muted">{t("topology.description")}</p>
       </div>
 
       <div className="card p-6 space-y-6">
         <div className="flex flex-col items-center gap-2">
-          <TopoNode title="Operator UI" badge="dashboard" subtitle="React + WebSocket" />
+          <TopoNode
+            title={t("topology.operatorUi")}
+            badge={t("topology.dashboardBadge")}
+            subtitle={t("topology.reactWs")}
+          />
           <span className="text-soc-muted">↓</span>
           <TopoNode
-            title="C2 Server"
-            badge="server"
-            subtitle={`v${health?.version ?? "—"} · ${online.length} nodes`}
+            title={t("topology.c2Server")}
+            badge={t("topology.serverBadge")}
+            subtitle={t("topology.versionNodes", {
+              version: health?.version ?? "—",
+              count: online.length,
+            })}
           />
           <span className="text-soc-muted">↓</span>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="border border-soc-border rounded-lg p-4">
-            <h3 className="text-sm font-semibold text-white mb-3">Computer nodes</h3>
+            <h3 className="text-sm font-semibold text-white mb-3">{t("topology.computerNodes")}</h3>
             {computerNodes.length === 0 ? (
-              <p className="text-xs text-soc-muted">No computer nodes online.</p>
+              <p className="text-xs text-soc-muted">{t("topology.noComputerNodes")}</p>
             ) : (
               <div className="space-y-2">
                 {computerNodes.map((n) => (
                   <Link
                     key={n.id}
                     to={`/nodes/${n.id}`}
-                    className="flex items-center justify-between border border-soc-border rounded p-2 hover:border-soc-accent text-sm"
+                    className="flex items-center justify-between border border-soc-border rounded p-2 hover:border-soc-brand text-sm"
                   >
                     <span className="font-mono">{n.alias || n.id}</span>
                     <TypeBadge type="computer" />
@@ -57,7 +64,7 @@ export function Topology() {
 
           <div className="border border-amber-500/30 rounded-lg p-4 bg-amber-500/5">
             <h3 className="text-sm font-semibold text-white mb-1 flex items-center gap-2">
-              IoT Gateway
+              {t("topology.iotGateway")}
               <TypeBadge type="gateway" />
             </h3>
             {gateway ? (
@@ -75,14 +82,16 @@ export function Topology() {
                       <span className="font-mono text-white">{d.device_id}</span>
                       <div className="flex gap-1">
                         <TypeBadge type={d.device_type === "actuator" ? "actuator" : "sensor"} />
-                        <span className="text-[10px] text-amber-300/80 uppercase">simulated</span>
+                        <span className="text-[10px] text-amber-300/80 uppercase">
+                          {t("nodeType.simulated")}
+                        </span>
                       </div>
                     </div>
                   ))}
                 </div>
               </>
             ) : (
-              <p className="text-xs text-soc-muted">Gateway offline — start dev.py IoT gateway.</p>
+              <p className="text-xs text-soc-muted">{t("topology.gatewayOffline")}</p>
             )}
           </div>
         </div>
@@ -90,9 +99,9 @@ export function Topology() {
         <div className="flex flex-col items-center gap-2 pt-2">
           <span className="text-soc-muted">↓</span>
           <TopoNode
-            title="Blockchain Ledger"
-            badge="ledger"
-            subtitle={health?.contract_address?.slice(0, 14) ?? "local"}
+            title={t("topology.blockchainLedger")}
+            badge={t("topology.ledgerBadge")}
+            subtitle={health?.contract_address?.slice(0, 14) ?? status("local")}
             href="/ledger"
           />
         </div>
@@ -103,7 +112,7 @@ export function Topology() {
           <Link
             key={n.id}
             to={n.node_type === "iot_gateway" ? "/iot-lab" : `/nodes/${n.id}`}
-            className="card p-4 hover:border-soc-accent transition-colors"
+            className="card-interactive p-4"
           >
             <div className="flex justify-between">
               <span className="font-mono text-sm">{n.alias || n.id}</span>
@@ -130,16 +139,17 @@ function TopoNode({
   href?: string;
 }) {
   const inner = (
-    <div className="border border-soc-border rounded-lg px-6 py-4 text-center min-w-[200px] bg-soc-panel2">
+    <div className="surface-inset rounded-lg px-4 sm:px-6 py-4 text-center w-full max-w-xs sm:min-w-[200px]">
       <div className="text-sm font-semibold text-white">{title}</div>
       <div className="text-xs text-soc-muted">{subtitle}</div>
-      <span className="text-[10px] uppercase text-soc-accent mt-1 inline-block">{badge}</span>
+      <span className="text-[10px] uppercase text-soc-brand mt-1 inline-block">{badge}</span>
     </div>
   );
   return href ? <Link to={href}>{inner}</Link> : inner;
 }
 
 function TypeBadge({ type }: { type: "computer" | "gateway" | "sensor" | "actuator" }) {
+  const { t } = useI18n();
   const colors: Record<string, string> = {
     computer: "text-sky-300 border-sky-500/40",
     gateway: "text-amber-300 border-amber-500/40",
@@ -150,7 +160,7 @@ function TypeBadge({ type }: { type: "computer" | "gateway" | "sensor" | "actuat
     <span
       className={`text-[10px] uppercase px-1.5 py-0.5 rounded border ${colors[type] ?? ""}`}
     >
-      {type}
+      {t(`nodeType.${type}`)}
     </span>
   );
 }
